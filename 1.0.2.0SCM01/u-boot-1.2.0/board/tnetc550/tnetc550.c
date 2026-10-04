@@ -1,0 +1,515 @@
+/*
+ * tnetc550.c
+ * Description:
+ * See below.
+ *
+ *
+ * Copyright (C) 2008, Texas Instruments, Incorporated
+ *
+ *  This program is free software; you can distribute it and/or modify it
+ *  under the terms of the GNU General Public License (Version 2) as
+ *  published by the Free Software Foundation.
+ *
+ *  This program is distributed in the hope it will be useful, but WITHOUT
+ *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ *  for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+ */
+/***********************************************************************
+ Portions Copyright (C) 2008 Motorola Incorporated - http://www.motorola.com
+*********************************************************************/
+
+
+/*
+ * This file implements board specific initilization routines.
+ *
+ */
+
+#include <common.h>
+
+#ifdef CONFIG_SPI_FLASH
+#include <spi.h>
+#endif
+
+#ifndef CONFIG_PUMA5_VOLCANO_EMU
+#include <puma5.h>
+#endif
+
+DECLARE_GLOBAL_DATA_PTR;
+
+#ifdef CONFIG_TI_BBU
+extern void bbu_init(int printEnableParam);
+#endif
+
+static volatile unsigned int* reg_gpioout;
+static int gpio_pin;
+static int is_env_updated = 0;
+
+
+#ifndef CONFIG_PUMA5_VOLCANO_EMU
+/* Reset out specified module using PSC */
+int psc_enable_module (int module_id)
+{
+    volatile unsigned int* module_reg = (volatile unsigned int *)REG_PSCMDCTL(module_id);
+
+    /* Set Next state as Enabled for the module */
+    *module_reg = (*module_reg & 0xffffffe0) | 0x03;
+
+    /* Enable the Power Domain Transition Command */
+    *(volatile unsigned int *)(REG_PSCPTCMD) = 1;
+
+    /* Check for Transition Complete(PTSTAT) */
+    while (*(volatile unsigned int *)(REG_PSCPTSTAT) & 1);
+
+    return(0);
+}
+
+/* Power down specified module using PSC */
+int psc_disable_module (int module_id)
+{
+    volatile unsigned int* module_reg = (volatile unsigned int *)REG_PSCMDCTL(module_id);
+
+    /* Set Next state as Disabled for the module */
+    *module_reg = (*module_reg & 0xffffffe0) | 0x02;
+
+    /* Enable the Power Domain Transition Command */
+    *(volatile unsigned int *)(REG_PSCPTCMD) = 1;
+
+    /* Check for Transition Complete(PTSTAT) */
+    while (*(volatile unsigned int *)(REG_PSCPTSTAT) & 1);
+
+    return(0);
+}
+
+/* Set the module state as specified */
+int psc_set_module_state (int module_id, int module_state)
+{
+    volatile unsigned int* module_reg = (volatile unsigned int *)REG_PSCMDCTL(module_id);
+
+    /* Set Next state as Enabled for the module */
+    *module_reg = (*module_reg & 0xffffffe0) | module_state;
+
+    /* Enable the Power Domain Transition Command */
+    *(volatile unsigned int *)(REG_PSCPTCMD) = 1;
+
+    /* Check for Transition Complete(PTSTAT) */
+    while (*(volatile unsigned int *)(REG_PSCPTSTAT) & 1);
+
+    return(0);
+}
+
+#if (CONFIG_COMMANDS & CFG_CMD_NET)
+void board_ether_init (void)
+{
+    char* boardtype;
+
+    /*
+     * Put AUX GPIO pins in functional mode for GMII
+     * (19 to 26)
+     */
+    *((volatile unsigned int *)(REG_AUX_GPIOEN))  &= ~(0xff<<19);
+
+    /* Check if Board type is provided through ENV. */
+    if ((boardtype = getenv("boardtype")) == NULL) {
+        printf ("WARNING: 'boardtype' not set, assuming 'tnetc550'.\n");
+        boardtype = "tnetc550";
+        setenv("boardtype", boardtype);
+        is_env_updated = 1;
+    }
+
+    if (strcmp (boardtype, "tnetc950") == 0)
+        gpio_pin = 32;
+    else
+        gpio_pin = 14;
+
+    /*
+     * Set specified GPIO (default GPIO14) in out mode for PHY reset control
+     */
+    if (gpio_pin > 31)
+    {
+        //AUX
+        gpio_pin -= 32;
+        *((volatile unsigned int *)(REG_AUX_GPIOEN))  |= (1<<gpio_pin);     /* Enable */
+        *((volatile unsigned int *)(REG_AUX_GPIODIR))  &= ~(1<<gpio_pin);   /* Out */
+        reg_gpioout = (volatile unsigned int *)REG_AUX_GPIOOUT;
+
+    }
+    else
+    {
+        *((volatile unsigned int *)(REG_GPIOEN))  |= (1<<gpio_pin);     /* Enable */
+        *((volatile unsigned int *)(REG_GPIODIR))  &= ~(1<<gpio_pin);   /* Out */
+        reg_gpioout = (volatile unsigned int *)REG_GPIOOUT;
+    }
+
+    /* Set for GigEth */
+    //    *(volatile unsigned int *)(REG_ETH_CR) |= (ETHCR_GIG_ENABLE | ETHCR_FD_ENABLE);
+}
+
+void reset_ether_phy (int fReset)
+{
+    /*
+     * TODO : PSC control calls are put inside this function to isolate ethernet
+     * driver from specifics, need to find proper location.
+     */
+    if (fReset) {
+        /*
+         * PHY in reset
+         */
+        *reg_gpioout &= ~(1<<gpio_pin);
+
+        udelay (30);    /* Minimum 20us delay */
+
+        psc_disable_module (LPSC_CPGMAC);
+        psc_disable_module (LPSC_MDIO);
+    } else {
+        psc_enable_module (LPSC_MDIO);
+        psc_enable_module (LPSC_CPGMAC);
+
+        /*
+         * PHY out of  reset
+         */
+        *reg_gpioout |= (1<<gpio_pin);
+        udelay (5000);
+    }
+}
+#endif /* CFG_CMD_NET */
+
+/* Set watchdog disable register to specified state */
+int set_watchdog_disable_reg (int state)
+{
+    int tmo;
+    volatile unsigned int* disable_lock_reg = (volatile unsigned int *)REG_WT_DISABLE_LOCK;
+    volatile unsigned int* disable_reg = (volatile unsigned int *)REG_WT_DISABLE;
+
+    /* Unlock stage 1 */
+    *disable_lock_reg = WT_DISABLE_UNLOCK_WORD1;
+    for (tmo = 0xff; tmo > 0; tmo--) {
+        if ((*disable_lock_reg & 3) == 1)
+            break;
+    }
+
+    /* Unlock stage 2 */
+    *disable_lock_reg = WT_DISABLE_UNLOCK_WORD2;
+    for (tmo = 0xff; tmo > 0; tmo--) {
+        if ((*disable_lock_reg & 3) == 2)
+            break;
+    }
+
+    /* Unlock stage 3 */
+    *disable_lock_reg = WT_DISABLE_UNLOCK_WORD3;
+    for (tmo = 0xff; tmo > 0; tmo--) {
+        if ((*disable_lock_reg & 3) == 3)
+            break;
+    }
+
+    /* Set disable reg  */
+    *disable_reg = (*disable_reg & ~1) | (state & 1);
+
+    return(0);
+}
+
+#endif /* !CONFIG_PUMA5_VOLCANO_EMU */
+
+/*
+ * Miscellaneous platform dependent initialisations
+ */
+
+int board_init (void)
+{
+        gd->bd->bi_arch_number = 1147;      /* MACH_TYPE_PUMA5 */
+
+	/* adress of boot parameters */
+	gd->bd->bi_boot_params = 0x80000100;
+
+
+#define PRCR_REG                        (*(volatile unsigned *)(0x08611600))
+#ifdef CONFIG_PUMA5_VOLCANO_EMU
+#define AVALANCHE_UART0_RESET_BIT       0
+#else
+#define AVALANCHE_UART0_RESET_BIT       1
+#endif
+
+#define SIO0__RSTMASK                   (1<<(AVALANCHE_UART0_RESET_BIT))
+
+    PRCR_REG|=SIO0__RSTMASK;
+
+#ifndef CONFIG_PUMA5_VOLCANO_EMU
+    psc_enable_module (LPSC_TIMER0);
+    psc_enable_module (LPSC_UART0);
+    set_watchdog_disable_reg (WT_STATE_DISABLED);
+    psc_enable_module (LPSC_UART1);
+    psc_enable_module (LPSC_CPPI41);
+    psc_enable_module (LPSC_GPIO);
+
+    /*
+     * GPIO0 as Output to turn On powe LED
+     */
+    *((volatile unsigned int *)(REG_GPIOEN))  |= 1;
+    *((volatile unsigned int *)(REG_GPIODIR))  &= ~(1<<0);   /* Out */
+
+    /* 
+     * GPIO11 as Output to turn On/Off link LED Blue
+     */
+    *((volatile unsigned int *)(REG_GPIOEN))  |= (1<<11);     /* Enable */
+    *((volatile unsigned int *)(REG_GPIODIR)) &= ~(1<<11);    /* Out    */
+    *((volatile unsigned int *)(REG_GPIOOUT)) |= (1<<11);     /* Outvalue LED is Off */
+
+     /* 
+     * GPIO12 as Output to turn On/Off link LED Amber
+     */
+    *((volatile unsigned int *)(REG_GPIOEN))  |= (1<<12);     /* Enable */
+    *((volatile unsigned int *)(REG_GPIODIR)) &= ~(1<<12);    /* Out    */
+    *((volatile unsigned int *)(REG_GPIOOUT)) |= (1<<12);     /* Outvalue LED is Off */
+
+    /* 
+     * GPIO4 as Output to turn On/Off DS LED Blue
+     */
+    *((volatile unsigned int *)(REG_GPIOEN))  |= (1<<4);     /* Enable */
+    *((volatile unsigned int *)(REG_GPIODIR)) &= ~(1<<4);    /* Out    */
+    *((volatile unsigned int *)(REG_GPIOOUT)) |= (1<<4);     /* Outvalue LED is Off */
+
+    /* 
+     * GPIO5 as Output to turn On/Off US LED Blue
+     */
+    *((volatile unsigned int *)(REG_GPIOEN))  |= (1<<5);     /* Enable */
+    *((volatile unsigned int *)(REG_GPIODIR)) &= ~(1<<5);    /* Out    */
+    *((volatile unsigned int *)(REG_GPIOOUT)) |= (1<<5);     /* Outvalue LED is Off */
+    
+    
+
+
+#endif /* !CONFIG_PUMA5_VOLCANO_EMU */
+
+	icache_enable ();
+               
+#ifdef CONFIG_SPI_FLASH        
+        /* Initilize SPI till this point we dont access SPI BUS :-) */
+	spi_init();
+#endif
+
+#ifdef CONFIG_PUMA5_VOLCANO_EMU
+        extern void DispStr(char *val);
+        DispStr ("<U-Boot>");
+
+        /* Disable gigabit capabilities on Lava board PHYs */
+        //lava_nogig ();
+#endif
+#ifdef CONFIG_TI_BBU
+    /* Initialize BBU */
+	bbu_init(0);
+#endif
+
+	return 0;
+}
+
+/******************************
+ Routine:
+ Description:
+******************************/
+int dram_init (void)
+{
+	gd->bd->bi_dram[0].start = PHYS_SDRAM_1;
+	gd->bd->bi_dram[0].size = *(unsigned int *)PHYS_SDRAM_1;
+	return 0;
+}
+
+#include <command.h>
+static unsigned int op_to_data (char* s)
+{
+    unsigned int data, *ptr;
+
+    /* if the parameter starts with a * then assume is a pointer to the value we want */
+    if (s[0] == '*') {
+        ptr = (unsigned int *)simple_strtoul(&s[1], NULL, 16);
+        data = *ptr;
+    } else {
+        data = simple_strtoul(s, NULL, 16);
+    }
+
+    return data;
+}
+
+/* command line interface to for addition and subtraction */
+int do_eval (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
+{
+#define EVAL_OPS        2
+#define EVAL_OP_ADD     0
+#define EVAL_OP_SUB     1
+
+    int     rc = 1, value = 0, len, i;
+    unsigned int op1, op2;
+    char*   op_tbl[EVAL_OPS] = {"+", "-"};
+    char evalval[12];
+
+    /* Validate arguments */
+    if ((argc < 4)){
+            printf("Usage:\n%s\n", cmdtp->usage);
+            return rc;
+    }
+
+    len = strlen (argv[2]);
+
+    for (i = 0; i < EVAL_OPS; i++) {
+        if ((strncmp (argv[2], op_tbl[i], len) == 0) && (len == strlen (op_tbl[i]))) {
+	    op1 = op_to_data (argv[1]);
+	    op2 = op_to_data (argv[3]);
+
+            switch (i) {
+                case EVAL_OP_ADD:
+                    value = op1 + op2;
+                    rc = 0;
+                    break;
+                case EVAL_OP_SUB:
+                    value = (int) (op1 - op2);
+                    rc = 0;
+                    break;
+                default:
+                    printf("Unsupported operation '%s'\n", argv[2]);
+                    break;
+            }
+            break;
+        }
+        else {
+#if 0
+            printf ("arg: %s, len: %d\n", argv[2], len);
+            printf ("op: %s, len: %d\n", op_tbl[i],  strlen (op_tbl[i]));
+#endif
+        }
+    }
+
+    if (i >= EVAL_OPS)
+        printf("Unknown/Unsupported operator '%s'\n", argv[2]);
+    else if (rc == 0) {
+        sprintf (evalval, "0x%x", value);
+        setenv("evalval", evalval);
+    }
+
+    return rc;
+}
+
+U_BOOT_CMD(
+	eval, CFG_MAXARGS, 0, do_eval,
+	"eval\t- return addition/subraction\n",
+	"[*]value1 <op> [*]value2\n"
+);
+
+static int generate_env_vals (void)
+{
+    int ret = 0;
+    char* s;
+    char hex_str[8+2+1+8/*safe*/];
+
+    if (((s = getenv ("ubootpartsize")) == NULL)
+            || (simple_strtoul (s, NULL, 16) == 0))
+    {
+        unsigned int ubootpartsize = CFG_UBOOT_SECT_SIZE;
+        sprintf (hex_str, "0x%x", ubootpartsize);
+        setenv ("ubootpartsize", hex_str);
+        ret = 1;
+    }
+
+    if (((s = getenv ("envpartsize")) == NULL)
+            || (simple_strtoul (s, NULL, 16) == 0))
+    {
+        unsigned int envpartsize = CFG_ENV_SECT_SIZE;
+        sprintf (hex_str, "0x%x", envpartsize);
+        setenv ("envpartsize", hex_str);
+        ret = 1;
+    }
+
+    if (((s = getenv ("UBFIADDR1")) == NULL)
+            || (simple_strtoul (s, NULL, 16) == 0))
+    {
+        unsigned int ubfiaddr1 = CFG_FLASH_BASE + CFG_UBOOT_SECT_SIZE
+                                    + (CFG_ENV_SECT_SIZE*2);
+        sprintf (hex_str, "0x%x", ubfiaddr1);
+        setenv ("UBFIADDR1", hex_str);
+        ret = 1;
+    }
+
+    if (((s = getenv ("UBFIADDR2")) == NULL)
+            || (simple_strtoul (s, NULL, 16) == 0))
+    {
+        extern flash_info_t flash_info[];
+        unsigned int ubfiaddr1 = CFG_FLASH_BASE + CFG_UBOOT_SECT_SIZE
+                                    + (CFG_ENV_SECT_SIZE*2);
+        unsigned int ubfiaddr2;
+        if (CFG_UBFI_SIZE)
+            ubfiaddr2 = ubfiaddr1 + CFG_UBFI_SIZE;
+        else
+        {
+            unsigned int used_space = CFG_UBOOT_SECT_SIZE + (CFG_ENV_SECT_SIZE*2)
+                                        + ((CFG_FLASH_SECT_RESRV)*(CFG_FLASH_SECT_SIZE));
+            unsigned int ubfisize = (flash_info[0].size - used_space) >> 1;
+            ubfisize -= (ubfisize & ( CFG_FLASH_SECT_SIZE - 1));
+            ubfiaddr2 = ubfiaddr1 + ubfisize;
+        }
+        sprintf (hex_str, "0x%x", ubfiaddr2);
+        setenv ("UBFIADDR2", hex_str);
+        ret = 1;
+    }
+
+/* Need version set here so it will be savd in NVRAM where application code can access it */
+/* If version is set later (in main.c) it will not be writting to NVRAM */
+#ifdef CONFIG_VERSION_VARIABLE
+        if ((s = getenv ("ver")) == NULL) 
+	{
+	  extern char version_string[];
+	  setenv ("ver", version_string);  /* set version variable */
+          ret = 1;
+	}
+#endif /* CONFIG_VERSION_VARIABLE */
+
+/* Need ethaddr set here so it will be saved in NVRAM  */
+/*   TI 1.1 based application code will not allow access to the 192.168.100.1 */
+/*   address if the uboot ethaddr is unset                                  */
+        if ((s = getenv ("ethaddr")) == NULL) 
+	{ 
+          char* default_ethaddr = "00.50.f1.10.00.01";
+	  setenv ("ethaddr", default_ethaddr);  
+          ret = 1;
+	}
+
+
+    return ret;
+}
+
+
+int board_late_init (void)
+{
+#if (CONFIG_COMMANDS & CFG_CMD_NET)
+    board_ether_init ();
+#endif
+
+    if((generate_env_vals()) || (is_env_updated))
+        saveenv ();
+
+    return 0;
+}
+
+#if 0
+/******************************************************
+ Routine: DispStr
+ Description: Display specified string on ASCII display
+*******************************************************/
+void DispStr(char *val)
+{
+  int i;
+  char *led_ptr;
+
+  led_ptr=(char *)ASCII_DISP_BASE;
+  for(i=0;i<8;i++)
+  {
+    if (*val)
+      *led_ptr=*val++;
+     else
+      *led_ptr=' ';
+    led_ptr+=ASCII_DISP_OFFSET;
+  }
+}
+#endif /* CONFIG_PUMA5_VOLCANO_EMU */
+

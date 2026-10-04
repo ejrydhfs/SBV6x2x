@@ -1,0 +1,39 @@
+1202197144: 11: Dmalloc version '5.3.0' from 'http://dmalloc.com/'
+1202197144: 11: flags = 0x4f4e503, logfile 'logfile'
+1202197144: 11: interval = 100, addr = 0, seen # = 0, limit = 0
+1202197144: 11: starting time = 1202197143
+1202197144: 11: process pid = 714
+1202197144: 11: Dumping Chunk Statistics:
+1202197144: 11: basic-block 4096 bytes, alignment 8 bytes, heap grows up
+1202197144: 11: heap address range: 0x501000 to 0x5511000, 83951616 bytes
+1202197144: 11:     user blocks: 20492 blocks, 83891080 bytes (99%)
+1202197144: 11:    admin blocks: 4 blocks, 16384 bytes (0%)
+1202197144: 11: external blocks: 0 blocks, 0 bytes (0%)
+1202197144: 11:    total blocks: 20496 blocks, 83951616 bytes
+1202197144: 11: heap checked 1
+1202197144: 11: alloc calls: malloc 11, calloc 0, realloc 0, free 0
+1202197144: 11: alloc calls: recalloc 0, memalign 0, valloc 0
+1202197144: 11: alloc calls: new 0, delete 0
+1202197144: 11:   current memory in use: 83891080 bytes (11 pnts)
+1202197144: 11:  total memory allocated: 83891080 bytes (11 pnts)
+1202197144: 11:  max in use at one time: 83891080 bytes (11 pnts)
+1202197144: 11: max alloced with 1 call: 8388608 bytes
+1202197144: 11: max unused memory space: 44152 bytes (0%)
+1202197144: 11: top 10 allocations:
+1202197144: 11:  total-size  count in-use-size  count  source
+1202197144: 11:           0      0           0      0  Total of 0
+1202197144: 11: Dumping Not-Freed Pointers Changed Since Start:
+1202197144: 11:  not freed: '0x501008|s1' (5000 bytes) from 'unknown'
+1202197144: 11:  not freed: '0x504008|s1' (8388608 bytes) from 'unknown'
+1202197144: 11:  not freed: '0xd06008|s1' (8388608 bytes) from 'unknown'
+1202197144: 11:  not freed: '0x1507008|s1' (8388608 bytes) from 'unknown'
+1202197144: 11:  not freed: '0x1d08008|s1' (8388608 bytes) from 'unknown'
+1202197144: 11:  not freed: '0x250a008|s1' (8388608 bytes) from 'unknown'
+1202197144: 11:  not freed: '0x2d0b008|s1' (8388608 bytes) from 'unknown'
+1202197144: 11:  not freed: '0x350c008|s1' (8388608 bytes) from 'unknown'
+1202197144: 11:  not freed: '0x3d0d008|s1' (8388608 bytes) from 'unknown'
+1202197144: 11:  not freed: '0x450e008|s1' (8388608 bytes) from 'unknown'
+1202197144: 11:  not freed: '0x4d0f008|s1' (8388608 bytes) from 'unknown'
+1202197144: 11:  total-size  count  source
+1202197144: 11:           0      0  Total of 0
+1202197144: 11: ending time = 1202197144, elapsed since start = 0:00:01

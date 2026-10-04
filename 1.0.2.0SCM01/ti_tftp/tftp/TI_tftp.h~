@@ -1,0 +1,150 @@
+/*****************************************************************************
+#**+-----------------------------------------------------------------------+**
+#**|                ****                                                   |**
+#**|                ****                                                   |**
+#**|                ******o***                                             |**
+#**|          ********_///_****                                            |**
+#**|          ***** /_//_/ ****                                            |**
+#**|           ** ** (__/ ****                                             |**
+#**|               *********                                               |**
+#**|                ****                                                   |**
+#**|                ***                                                    |**
+#**|                                                                       |**
+#**|       Copyright (c) 1998-2007 Texas Instruments Incorporated          |**
+#**|                      ALL RIGHTS RESERVED                              |**
+#**|                                                                       |**
+#**| Permission is hereby granted to licensees of Texas Instruments        |**
+#**| Incorporated (TI) products to use this computer program for the sole  |**
+#**| purpose of implementing a licensee product based on TI products.      |**
+#**| No other rights to reproduce, use, or disseminate this computer       |**
+#**| program, whether in part or in whole, are granted.                    |**
+#**|                                                                       |**
+#**| TI makes no representation or warranties with respect to the          |**
+#**| performance of this computer program, and specifically disclaims      |**
+#**| any responsibility for any damages, special or consequential,         |**
+#**| connected with the use of this program.                               |**
+#**|                                                                       |**
+#**+-----------------------------------------------------------------------+**
+#****************************************************************************/
+
+#ifndef _SYSEXITS_H
+#include <sysexits.h>
+#endif 
+
+#include <dlfcn.h>
+#define SYSERR 254
+#define REP_SET 300             /* used by report_config */
+#define REP_GET 299             /* used by report_config */
+#define MAXBLKSZV6 1428         /* largest supported ipv6 blocksize */
+#define MAXBLKSZV4 1448         /* largest supported ipv4 blocksize */
+#define FILE_NOT_FOUND 301      /* MOTO cqvds00013138 Viswanadh (VTJK73) Error Code for File Not found */
+char *TI_getfile[2];	/* noninteractive get mode */
+char *TI_putfile[2];	/* noninteractive get mode */
+char *TI_interface;	/* -i option for binding to interface */
+char *TI_mode[2];	/* -m option for transfer mode */
+int TI_ipv6;		/* IPv6 mode */
+int TI_reqsize;		/* requested blocksize */
+int TI_error;		/* error code */
+int TI_blocksize;
+
+/* Uncomment this line to enable DEBUG prints */
+/*#define TI_TRACE*/
+
+#ifdef TI_TRACE
+    #define DBG_PRINT(X)   printf X ;
+#else
+    #define DBG_PRINT(X)   
+#endif
+
+
+struct Plugver {
+    int major;
+    int minor;
+};
+
+struct Plugin {
+
+    struct Plugver ver;
+
+/**************************************************************************
+ * FUNCTION NAME : tftp_plugin_exit
+ **************************************************************************
+ * DESCRIPTION   :
+ *  exit handling
+ **************************************************************************/
+    int (*tftp_plugin_exit) (void);
+
+/**************************************************************************
+ * FUNCTION NAME : tftp_option_help
+ **************************************************************************
+ * DESCRIPTION   :
+ *  Print usage to user
+ **************************************************************************/
+    int (*tftp_option_help) (char *progname);
+
+/**************************************************************************
+ * FUNCTION NAME : tftp_option_parse
+ **************************************************************************
+ * DESCRIPTION   :
+ * parse command line args using getopt; 
+ * assumes first argument is host and any flags follow
+ **************************************************************************/
+    int (*tftp_option_parse) (int ac, char **av);
+
+/**************************************************************************
+ * FUNCTION NAME : tftp_timeout_cb
+ **************************************************************************
+ * DESCRIPTION   :
+ * callback for timeout reporting. Instantiated when maxtimeout or -t
+ * val is retries are reached
+ **************************************************************************/
+    void (*tftp_timeout_cb) (void);
+
+/**************************************************************************
+ * FUNCTION NAME : TI_report_config
+ **************************************************************************
+ * DESCRIPTION   :
+ * 
+ **************************************************************************/
+    int (*tftp_report_config) (int, char *);
+    
+};
+
+extern struct Plugin TIplug;      /* Single container struc for func ptr */
+
+/**************************************************************************
+ * FUNCTION NAME : tftp_plugin_register
+ **************************************************************************
+ * DESCRIPTION   :
+ *  boot strap plugin functions
+ **************************************************************************/
+int tftp_register_plugin(struct Plugin);
+
+
+/**************************************************************************
+ * FUNCTION NAME : tftp_plugin_unregister
+ **************************************************************************
+ * DESCRIPTION   :
+ *  boot strap plugin functions
+ **************************************************************************/
+int tftp_unregister_plugin(struct Plugin);
+
+/**************************************************************************
+ * FUNCTION NAME : tftp_plugin_init
+ **************************************************************************
+ * DESCRIPTION   :
+ * required func for plugin. used to intialize and register 
+ **************************************************************************/
+void tftp_plugin_init(void);
+
+
+/* prototypes for default plugin functions; also used for static
+ * linking; ignored if user defines their own plugin replacements */
+
+int TI_plugin_exit(void);
+void TI_option_help(char *);
+int TI_option_parse(int , char **);
+void TI_core_init(void);
+int TI_report_config(int, char*);
+
+

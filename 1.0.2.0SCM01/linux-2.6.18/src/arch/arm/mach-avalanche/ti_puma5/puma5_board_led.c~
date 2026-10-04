@@ -1,0 +1,182 @@
+/*
+ *
+ * puma5_board_led.c 
+ * Description:
+ * LED configuration data for board
+ *
+ *
+ * Copyright (C) 2008, Texas Instruments, Incorporated
+ *
+ *  This program is free software; you can distribute it and/or modify it
+ *  under the terms of the GNU General Public License (Version 2) as
+ *  published by the Free Software Foundation.
+ *
+ *  This program is distributed in the hope it will be useful, but WITHOUT
+ *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ *  for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+ *
+ */
+
+#include <linux/config.h>
+#include <linux/init.h>
+#include <asm/arch/generic/pal.h>
+#include <asm/arch/generic/led_manager.h>
+
+
+typedef struct 
+{
+    unsigned int bit_pos0;
+    unsigned int bit_val0;
+    unsigned int bit_pos1;
+    unsigned int bit_val1;
+
+} LED_POS_VAL_T;
+
+#define SOC_LED
+#define SOC_DOMAIN                 0
+#define NO_LED_BIT                 0xFFFFFFFF
+
+#ifdef CONFIG_MACH_PUMA5EVM
+LED_POS_VAL_T soc_led_pos_val[ ] = {{0,0,NO_LED_BIT,0}, {1,1,NO_LED_BIT,0}, {2,1,NO_LED_BIT,0}, /* cqvds00011292 Add GPIO0 for Power LED */ /*MOTO cqvds00016729 Srikanth - Power LED should glow always (even in boot process)*/
+                                    {3,1,NO_LED_BIT,0}, {4,1,NO_LED_BIT,0}, {5,1,NO_LED_BIT,0}, 
+                                    {8,1,NO_LED_BIT,0}, {11,1,NO_LED_BIT,0}, {12,1,NO_LED_BIT,0},{16,1,NO_LED_BIT,0},
+                                    /* cqvds00009455: Moto-S&E (Added GPIO 11 for link LED - BLUE color) */
+/* cqvds00008831 XY: adding GPIO13 for BBU test load, default to low -S */ 
+                                    {13,0,NO_LED_BIT,0},
+/* cqvds00008831 XY: -E */ 
+									{17,1,NO_LED_BIT,0}};
+
+
+unsigned int soc_led_count       = sizeof(soc_led_pos_val)/sizeof(soc_led_pos_val[0]);
+#elif defined(NEW_BOARD)
+
+#else
+#undef SOC_LED
+#endif  
+
+#ifdef SOC_LED
+static void _map_led_pos_and_val(int bit, unsigned val,
+                                 unsigned int  *pos_map0,
+                                 unsigned int  *val_map0,
+                                 unsigned int  *pos_map1,
+                                 unsigned int  *val_map1)
+{
+    if(bit > 31)
+    {
+        bit -= 32;
+        *pos_map1 |= (1 << bit);
+        *val_map1 |= (val << bit);
+    }
+    else
+    {
+        *pos_map0 |= (1 << bit);
+        *val_map0 |= (val << bit);
+    }
+
+    return;
+}
+
+static void map_led_pos_and_val(LED_POS_VAL_T *p_pos_val,
+                                unsigned int  *pos_map0,
+                                unsigned int  *val_map0,
+                                unsigned int  *pos_map1,
+                                unsigned int  *val_map1)
+{
+    if(p_pos_val->bit_pos0 != NO_LED_BIT)
+        _map_led_pos_and_val(p_pos_val->bit_pos0, p_pos_val->bit_val0,
+                             pos_map0, val_map0, pos_map1, val_map1);
+
+    if(p_pos_val->bit_pos1 != NO_LED_BIT)
+        _map_led_pos_and_val(p_pos_val->bit_pos1, p_pos_val->bit_val1,
+                             pos_map0, val_map0, pos_map1, val_map1);
+
+    return;
+}
+
+static void puma5_soc_led_callback_install(LED_POS_VAL_T *p_pos_val, int led_count)
+{
+    LED_FUNCS_T led_funcs;
+    int i;
+	
+    for(i=0; i < led_count; i++)
+    {
+        unsigned int pos_map0 = 0, val_map0 = 0, pos_map1 = 0, val_map1 = 0;
+
+        map_led_pos_and_val(p_pos_val, &pos_map0, &val_map0, &pos_map1, &val_map1);
+
+        led_funcs.domain     = SOC_DOMAIN;
+        led_funcs.pos_map[0] = pos_map0;
+        led_funcs.pos_map[1] = pos_map1;
+	    led_funcs.off_val[0] = val_map0;
+	    led_funcs.off_val[1] = val_map1;
+        led_funcs.outVal     = PAL_sysGpioOutValue;
+        led_manager_install_callbacks(&led_funcs);
+
+        p_pos_val++; 
+    }
+
+    return;
+}
+
+static void puma5_soc_led_gpio_enable(LED_POS_VAL_T *p_pos_val, int led_count) 
+{
+    int i = 0;
+    
+    for(i=0; i < led_count; i++)
+    {
+        if(p_pos_val->bit_pos0 != NO_LED_BIT)
+            PAL_sysGpioCtrl(p_pos_val->bit_pos0, GPIO_PIN, GPIO_OUTPUT_PIN); 
+
+        if(p_pos_val->bit_pos1 != NO_LED_BIT)
+            PAL_sysGpioCtrl(p_pos_val->bit_pos1, GPIO_PIN, GPIO_OUTPUT_PIN);
+
+        p_pos_val++; 
+    }
+}
+
+static void puma5_soc_led_gpio_init(LED_POS_VAL_T *p_pos_val, int led_count) 
+{
+    int i = 0;
+
+    for(i=0; i < led_count; i++)
+    {
+        unsigned int pos_map0 = 0, val_map0 = 0, pos_map1 = 0, val_map1 = 0;
+
+        map_led_pos_and_val(p_pos_val, &pos_map0, &val_map0, 
+                            &pos_map1, &val_map1);
+
+        if(pos_map0)
+            PAL_sysGpioOutValue(val_map0, pos_map0, 0 /*reg_index*/);
+
+        if(pos_map1)
+            PAL_sysGpioOutValue(val_map1, pos_map1, 1 /*reg_index*/);
+
+        p_pos_val++; 
+    }
+
+    return;
+}
+
+extern int led_manager_init(void);
+#endif
+
+static int led_callback_init(void)
+{
+#ifdef SOC_LED
+    /* Enabling and Initialiasing the GPIO's mapped for the LED(s) */
+    puma5_soc_led_gpio_enable(&soc_led_pos_val[0], soc_led_count);
+    puma5_soc_led_gpio_init(&soc_led_pos_val[0], soc_led_count); 
+    led_manager_init();
+    puma5_soc_led_callback_install(&soc_led_pos_val[0], soc_led_count);
+
+#endif
+
+    return (0);
+}
+
+__initcall(led_callback_init);

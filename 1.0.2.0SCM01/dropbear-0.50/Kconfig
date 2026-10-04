@@ -1,0 +1,70 @@
+#/************************************************************
+#**+----------------------------------------------------------------------------------+**
+#**|                            ****                                                  |**
+#**|                            ****                                                  |**
+#**|                            ******o***                                            |**
+#**|                      ********_///_****                                           |**
+#**|                      ***** /_//_/ ****                                           |**
+#**|                       ** ** (__/ ****                                            |**
+#**|                           *********                                              |**
+#**|                            ****                                                  |**
+#**|                            ***                                                   |**
+#**|                                                                                  |**
+#**|         Copyright (c) 1998-2006 Texas Instruments Incorporated                   |**
+#**|                        ALL RIGHTS RESERVED                                       |**
+#**|                                                                                  |**
+#**| Permission is hereby granted to licensees of Texas Instruments                   |**
+#**| Incorporated (TI) products to use this computer program for the sole             |**
+#**| purpose of implementing a licensee product based on TI products.                 |**
+#**| No other rights to reproduce, use, or disseminate this computer                  |**
+#**| program, whether in part or in whole, are granted.                               |**
+#**|                                                                                  |**
+#**| TI makes no representation or warranties with respect to the                     |**
+#**| performance of this computer program, and specifically disclaims                 |**
+#**| any responsibility for any damages, special or consequential,                    |**
+#**| connected with the use of this program.                                          |**
+#**|                                                                                  |**
+#**+----------------------------------------------------------------------------------+**
+#************************************************************/
+
+config TI_DROPBEAR
+	bool "SSH Server, Client and other utils"
+    depends on TI_NETDK
+	select PACKET
+	default y
+	help
+		Enable or Disable Dropbear package.
+
+if TI_DROPBEAR
+config TI_DROPBEAR_SERVER
+	bool "SSH Server"
+	default y
+	help
+		Enable SSH Server in Dropbear
+
+config TI_DROPBEAR_CLIENT
+	bool "SSH Client"
+	default n
+	help
+		Enable SSH Client in Dropbear
+
+config TI_DROPBEAR_KEY
+	bool "Dropbear Key Generator"
+	default y
+	help
+		Enable Key generator tool in Dropbear. This utility is built for host machine.
+
+config TI_DROPBEAR_KEYCONVERTER
+	bool "Key Converter"
+	default y
+	help
+		Enable Key converter tools (Openssh key --> dropbear key) in Dropbear. This utility is built for the host machine.
+
+config TI_DROPBEAR_SCP
+	bool "SCP tool"
+	default n
+	help
+		Enable SCP program in Dropbear
+
+endif
+

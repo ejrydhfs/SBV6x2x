@@ -1,0 +1,117 @@
+Frequently Asked Questions about udev
+
+
+Q: What's this udev thing, and what is it trying to do?
+A: Read the OLS 2003 paper about udev, available in the docs/ directory,
+   and at:
+	<http://www.kroah.com/linux/talks/ols_2003_udev_paper/Reprint-Kroah-Hartman-OLS2003.pdf>
+   There is also a udev presentation given at OLS 2003 available at:
+	<http://www.kroah.com/linux/talks/ols_2003_udev_talk/>
+
+Q: How is udev related to devfs?
+A: udev works entirely in userspace, using /sbin/hotplug calls that the
+   kernel makes whenever a device is added or removed from the kernel.  All
+   naming policy, and permission control is done in userspace.  devfs
+   operated from within the kernel.
+
+Q: Why was devfs marked OBSOLETE if udev is not finished yet?
+A: To quote Al Viro (Linux VFS kernel maintainer):
+	- it was determined that the same thing could be done in userspace
+	- devfs had been shoved into the tree in hope that its quality will
+	  catch up
+	- devfs was found to have fixable and unfixable bugs
+	- the former had stayed around for many months with maintainer
+	  claiming that everything works fine
+	- the latter had stayed, period.
+	- the devfs maintainer/author disappeared and stopped maintaining
+	  the code.
+
+Q: But udev will not automatically load a driver if a /dev node is opened
+   when it is not present like devfs will do.
+A: If you really require this functionality, then use devfs.  It is still
+   present in the kernel.
+
+Q: But wait, I really want udev to automatically load drivers when they
+   are not present but the device node is opened.  It's the only reason I
+   like using devfs.  Please make udev do this.
+A: No.  udev is for managing /dev, not loading kernel drivers.
+
+Q: Oh come on, pretty please.  It can't be that hard to do.
+A: Such a functionality isn't needed on a properly configured system. All
+   devices present on the system should generate hotplug events, loading
+   the appropriate driver, and udev will notice and create the
+   appropriate device node.  If you don't want to keep all drivers for your
+   hardware in memory, then use something else to manage your modules
+   (scripts, modules.conf, etc.)  This is not a task for udev.
+
+Q: But I love that feature of devfs, please?
+A: The devfs approach caused a lot of spurious modprobe attempts as
+   programs probed to see if devices were present or not.  Every probe
+   attempt created a process to run modprobe, almost all of which were
+   spurious.
+
+Q: I really like the devfs naming scheme, will udev do that?
+A: Yes, udev can create /dev nodes using the devfs naming policy.  A
+   configuration file needs to be created to map the kernel default names
+   to the devfs names.  See the initial udev.rules.devfs file in the udev
+   release.  It is the start of such a configuration file.  If there are
+   any things missing, please let the udev authors know.
+
+Q: What kinds of devices does udev create nodes for?
+A: All devices that are shown in sysfs will work with udev.  If more
+   support is added for devices to the kernel, udev will automatically
+   start working for them.  All block devices are currently supported, and
+   almost all major char devices are supported.  Kernel developers are
+   working on adding support for all char devices at this time.  See the
+   linux-kernel mailing list for patches and status of these patches.
+
+Q: Will udev remove the limit on the number of anonymous devices?
+A: udev is entirely in userspace.  If the kernel supports a greater number
+   of anonymous devices, udev will support it.
+
+Q: Will udev support symlinks?
+A: Yes, It now does.  Multiple symlinks per device node too.
+
+Q: How will udev handle the /dev filesystem?
+A: /dev can be a ramfs, or a backing filesystem.  udev does not care what
+   kind of filesystem it runs on.
+
+Q: How will udev handle devices found before init runs?
+A: udev will be placed in initramfs and run for every device that is found.
+   Work to get this implemented is still underway.
+
+Q: Can I use udev to automount a USB device when I connect it?
+A: Technically, yes, but udev is not intended for this. Projects that do
+   automount hotplugged storage devices are:
+     * Usb-mount http://users.actrix.co.nz/michael/usbmount.html
+     * devlabel http://linux.dell.com/projects.shtml#devlabel   
+                                                             
+   Alternatively, it is easy to add the following to fstab:  
+   /udev/pendrive       /pendrive       vfat    user,noauto             0       0
+
+   This means that users can access the device with:
+   $ mount /pendrive
+   And don't have to be root but will get full permissions on /pendrive.
+   This works even without udev if /udev/pendrive is replaced by /dev/sda1
+
+Q: Are there any security issues that I should be aware of?
+A: When using dynamic device numbers, a given pair of major/minor numbers may
+   point to different hardware over time. If a user has permission to access a
+   specific device node directly and is able to create hard links to this node,
+   he or she can do so to create a copy of the device node. When the device is
+   unplugged and udev removes the device node, the user's copy remains.
+   If the device node is later recreated with different permissions the hard 
+   link can still be used to access the device using the old permissions.
+   (The same problem exists when using PAM to change permissions on login.)
+    
+   The simplest solution is to prevent the creation of hard links by putting
+   /dev in a separate filesystem (tmpfs, ramfs, ...).
+    
+Q: I have other questions about udev, where do I ask them?
+A: The linux-hotplug-devel mailing list is the proper place for it.  The
+   address for it is linux-hotplug-devel@lists.sourceforge.net
+   Information on joining can be found at
+	<https://lists.sourceforge.net/lists/listinfo/linux-hotplug-devel>
+   Archives of the mailing list can be found at:
+	<http://marc.theaimsgroup.com/?l=linux-hotplug-devel>
+

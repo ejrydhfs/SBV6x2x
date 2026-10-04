@@ -1,0 +1,94 @@
+
+udev - a userspace implementation of devfs
+
+For more information on the design, and structure of this project, see the
+files in the docs/ directory.
+
+To use:
+
+- You must be running a 2.6 version of the Linux kernel.
+
+- Your 2.6 kernel must have had CONFIG_HOTPLUG enabled when it was built.
+
+- Make sure sysfs is mounted.  udev will figure out where sysfs is mounted, but
+  the traditional place for it is at /sys.  You can mount it by hand by running:
+  	mount -t sysfs none /sys
+
+- Make sure you have the latest version of the linux-hotplug scripts.  They are
+  available at linux-hotplug.sf.net or from your local kernel.org mirror at:
+	kernel.org/pub/linux/utils/kernel/hotplug/
+  They are required in order for udev to work properly.
+
+  If for some reason you do not install the hotplug scripts, you must tell the
+  kernel to point the hotplug binary at wherever you install udev at.  This can
+  be done by:
+	echo "/sbin/udev" > /proc/sys/kernel/hotplug
+
+- Build the project:
+	make
+
+  Note:
+      There are a number of different flags that you can use when building
+      udev.  They are as follows:
+	prefix
+		set this to the default root that you want udev to be
+		installed into.  This works just like the 'configure --prefix'
+		script does.  Default value is ''.  Only override this if you
+		really know what you are doing.
+	USE_KLIBC
+		if set to 'true', udev is built and linked against the
+		included version of klibc.  Default value is 'false'.
+	USE_LOG
+		if set to 'true', udev will emit messages to the syslog when
+		it creates or removes device nodes.  This is helpful to see
+		what udev is doing.  This is enabled by default.  Note, if you
+		are building udev against klibc it is recommended that you
+		disable this option (due to klibc's syslog implementation.)
+	USE_SELINUX
+		if set to 'true', udev will be built with SELinux support
+		enabled.  This is disabled by default.
+	DEBUG
+		if set to 'true', debugging messages will be sent to the syslog
+		as udev is run.  Default value is 'false'.
+	KERNEL_DIR
+		If this is not set it will default to /lib/modules/`uname -r`/build
+		This is used if USE_KLIBC=true to find the kernel include
+		directory that klibc needs to build against.  This must be set
+		if you are not building udev while running a 2.6 kernel.
+
+      So, if you want to build udev using klibc with debugging messages, you
+      would do:
+	make USE_KLIBC=true DEBUG=true
+
+- Install the project:
+	make install
+
+  This will put the udev binary in /sbin, create the /udev and /etc/udev
+  directories, and place the udev configuration files in /etc/udev.  You
+  will probably want to edit the *.rules files to create custom naming
+  rules.  More info on how the config files are set up are contained in
+  comments in the files, and is located in the documentation.
+
+- Add and remove devices from the system and marvel as nodes are created
+  and removed in /udev/ based on the device types.
+
+- If you later get sick of it, uninstall it:
+	make uninstall
+
+
+Things are still quite rough, but it should work properly.  If nothing
+seems to happen, make sure your build worked properly by running the
+udev-test.pl script as root in the test/ subdirectory of the udev source
+tree.
+
+Development and documentation help is very much appreciated, see the TODO
+file for a list of things left to be done.
+
+
+Any comment/questions/concerns please let me and the other udev developers
+know by sending a message to the linux-hotplug-devel mailing list at:
+	linux-hotplug-devel@lists.sourceforge.net
+
+greg k-h
+greg@kroah.com
+

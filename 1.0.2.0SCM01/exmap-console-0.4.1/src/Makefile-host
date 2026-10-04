@@ -1,0 +1,83 @@
+################################################################################
+# 
+# Copyright(c) 2008 Texas Instruments, Inc. All rights reserved.
+# 
+# This program is free software; you can redistribute it and/or modify it 
+# under the terms of the GNU General Public License as published by the Free 
+# Software Foundation; either version 2 of the License, or (at your option) 
+# any later version.
+# 
+# This program is distributed in the hope that it will be useful, but WITHOUT 
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or 
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for 
+# more details.
+# 
+# You should have received a copy of the GNU General Public License along with
+# this program; if not, write to the Free Software Foundation, Inc., 59 
+# Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+# 
+# The full GNU General Public License is included in this distribution in the
+# file called LICENSE.
+# 
+################################################################################
+
+.PHONY:  build clean distclean install uninstall
+
+# Required definitions
+ifndef TARGET_HOME
+TARGET_HOME := /vobs/ua_sdk
+endif
+
+# File system path, where to install the module
+ifndef EXMAP_HOST_INSTALL_DIR
+EXMAP_HOST_INSTALL_DIR := ../../../../../bin
+endif
+
+#
+# Final output target
+#
+TARGET := exmap
+
+#
+# Compilation options to add to the compiler (optional)
+#
+CFLAGS = -DVERSION=\"0.4.1\" -DEXMAP_VERSION=\"0.9\" -DEXMAP_PROTOCOL_VERSION=\"0.1\" -DINTERACTIVE \
+         -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/lib64/glib-2.0/include
+
+#
+# Link options to add to the linker (optional)
+#
+LDFLAGS := -lglib-2.0 -lreadline -ltermcap
+
+#
+# List of objects to compile
+#
+obj-y = exelf.o exmap.o interactive.o
+
+override CC := cc
+
+all: build install
+
+build: $(TARGET)
+
+$(TARGET): $(obj-y)
+	@rm -f $@
+	@echo "  CC [TGT] 	$@"
+	@$(CC) $(LDFLAGS) -o $@ $(filter $(obj-y), $^)
+
+install:
+	@install -m 0755 $(TARGET) $(EXMAP_HOST_INSTALL_DIR)/$(notdir $(TARGET))
+
+clean:
+	@rm -f $(TARGET) $(obj-y)
+
+config:
+
+uninstall:
+	@rm -f $(EXMAP_HOST_INSTALL_DIR)/$(notdir $(TARGET))
+
+distclean: clean uninstall
+
+%.o : %.c
+	@echo "  CC [C] 	$@"
+	@$(CC) $(CFLAGS) -c $< -o $@

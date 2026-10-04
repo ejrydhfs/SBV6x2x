@@ -1,0 +1,41 @@
+Source: libber
+Section: devel
+Priority: optional
+Maintainer: Abraham vd Merwe <abz@debian.org>
+Build-Depends: debhelper (>> 3.0.0), libdebug0-dev (>= 0.4.2), libabz0-dev (>= 0.6.3)
+Standards-Version: 3.6.1
+
+Package: libber0
+Architecture: any
+Section: libs
+Depends: ${shlibs:Depends}
+Description: A Basic Encoding Rules (ITU X.690) implementation
+ This library is an implementation of the ITU-T X.690 specification
+ of Basic Encoding Rules (BER). BER is a language used to encode
+ data so that it can be transferred and be interpreted by different
+ hosts in a platform independent manner.
+ .
+ BER is is used to encode data in SNMP and LDAP and probably other
+ popular protocols as well. This library is used by the author's SNMP
+ software.
+ .
+ This package contains files needed by programs linked against
+ this library.
+
+Package: libber0-dev
+Architecture: any
+Section: libdevel
+Depends: ${shlibs:Depends}, libber0 (= ${Source-Version}), libdebug0-dev (>= 0.4.2), libabz0-dev (>= 0.6.3)
+Description: Development files for the BER library
+ This library is an implementation of the ITU-T X.690 specification
+ of Basic Encoding Rules (BER). BER is a language used to encode
+ data so that it can be transferred and be interpreted by different
+ hosts in a platform independent manner.
+ .
+ BER is is used to encode data in SNMP and LDAP and probably other
+ popular protocols as well. This library is used by the author's SNMP
+ software.
+ .
+ This package contains files needed if you wish to use libber
+ in your own programs.
+

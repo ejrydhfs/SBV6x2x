@@ -1,0 +1,10 @@
+This is a simple command line tool making use of the exmap kernel module
+by John Berthels' <jjberthels@gmail.com>; the module is contained in the 
+kernel directory and is taken directly from exmap-0.9 (for more information
+about exmap see http://www.berthels.co.uk/exmap).
+
+To use:
+
+1 - 'make' at toplevel to build
+2 - 'sudo insmod kernel/exmap.ko' to load the kernel module
+3 - './src/exmap' to run

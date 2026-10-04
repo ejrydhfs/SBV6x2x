@@ -1,0 +1,3 @@
+usr/include/ber
+usr/lib/libber.{a,so}
+usr/share/man/man3/*

@@ -1,0 +1,25 @@
+
+1. Split libber up into different libraries (or add plugin modules):
+
+ libber
+ libbersnmp / ber_snmp.so
+ libberlogd / ber_logd.so
+
+2. API Changes:
+
+ Add the following:
+
+ ber_{en,de}code_constructed
+ ber_{en,de}code_length
+
+ - print functions?
+ - printf/scanf functions?
+
+ Change the following:
+
+ - skip tag functions (have a look at liblber - is this possible?)
+ - encode arbitrary length buffers (double-linked circular list maybe with
+   get_first/get_prev/get_next/get_size routines to retrieve buffers)
+ - get rid of abz_{get,set,clear}_error() functions and introduce error
+   number system (errcode,tagid) with tagid resolver functions.
+

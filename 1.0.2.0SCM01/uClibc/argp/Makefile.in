@@ -1,0 +1,51 @@
+
+LDFLAGS-libargp.so := $(LDFLAGS)
+
+LIBS-libargp.so := $(LIBS)
+
+argp_FULL_NAME :=libargp-$(MAJOR_VERSION).$(MINOR_VERSION).$(SUBLEVEL).so
+
+argp_DIR := $(top_srcdir)argp
+argp_OUT := $(top_builddir)argp
+CFLAGS-argp := -DNOT_IN_libc -DIS_IN_argp -I $(argp_DIR) $(SSP_ALL_CFLAGS)
+
+argp_SRC :=  $(argp_DIR)/argp-ba.c $(argp_DIR)/argp-fmtstream.c \
+		$(argp_DIR)/argp-fs-xinl.c $(argp_DIR)/argp-help.c \
+		$(argp_DIR)/argp-parse.c $(argp_DIR)/argp-pv.c \
+		$(argp_DIR)/argp-pvh.c $(argp_DIR)/argp-xinl.c \
+		$(argp_DIR)/argp-eexst.c
+argp_OBJ := $(patsubst $(argp_DIR)/%.c,$(argp_OUT)/%.o,$(argp_SRC))
+
+ifeq ($(DOPIC),y)
+argp-a-y += $(argp_OBJ:.o=.os)
+else
+argp-a-y += $(argp_OBJ)
+endif
+argp-so-y += $(argp_OBJ:.o=.os)
+
+argp-multi-y += $(argp_SRC)
+
+lib-a-y += $(top_builddir)lib/libargp.a
+lib-so-y += $(top_builddir)lib/libargp.so
+objclean-y += argp_clean
+
+ifeq ($(DOPIC),y)
+$(top_builddir)lib/libargp.so: $(top_builddir)lib/libargp.a $(libc)
+else
+$(top_builddir)lib/libargp.so: $(argp_OUT)/libargp_so.a $(libc)
+endif
+	$(call link.so,$(argp_FULL_NAME),$(MAJOR_VERSION))
+
+$(argp_OUT)/libargp_so.a: $(argp-so-y)
+	$(Q)$(RM) $@
+	$(do_strip)
+	$(do_ar)
+
+$(top_builddir)lib/libargp.a: $(argp-a-y)
+	$(Q)$(INSTALL) -d $(dir $@)
+	$(Q)$(RM) $@
+	$(do_strip)
+	$(do_ar)
+
+argp_clean:
+	$(RM) $(argp_OUT)/*.{o,os,a}

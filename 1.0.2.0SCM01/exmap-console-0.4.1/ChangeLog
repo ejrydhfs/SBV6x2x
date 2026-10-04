@@ -1,0 +1,43 @@
+2006-02-20  tf,,,  <tf@o-hand.com>
+
+	* fixes to interactive mode interaction; added 'format' command;
+	improved behaviour with fs root set; improved signal handling.
+
+	* bumped version to 0.4.1; separate versioning for server protocol
+	
+2006-02-20  tf,,,  <tf@o-hand.com>
+
+	* fixes to interactive mode interaction; added 'format' command;
+	improved behaviour with fs root set; improved signal handling.
+	
+2006-12-19  tf,,,  <tf@o-hand.com>
+
+	* 0.3.2 fixed stdout output in non-interactive mode; added
+	ps and sh commands to interactive mode.
+
+2006-12-15  tf,,,  <tf@o-hand.com>
+
+	* 0.3.1 fixes for poky and saving of history:
+	src/interactive.c: fixes to work with readline < 5
+	kernel/Makefile: only run depmod if installing on current system
+
+2006-12-15  tf,,,  <tf@o-hand.com>
+
+	* 0.3 release changes:
+	interactive mode
+	allow sorting by effective memory (patch by Pengcheng Zou)
+	
+
+2006-12-08  tf,,,  <tf@o-hand.com>
+
+	* 0.2 release changes:
+	addition of exmapd daemon,
+	symbol information now available
+	
+2006-11-03  tf,,,  <tf@o-hand.com>
+
+	* Makefile.am:
+	* src/Makefile.am:
+	* autogen.sh:
+	* configure.ac:
+	Autotooled

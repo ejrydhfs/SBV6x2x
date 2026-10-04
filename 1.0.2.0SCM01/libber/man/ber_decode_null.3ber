@@ -1,0 +1,97 @@
+.\"
+.\" -*- nroff -*-
+.\"
+.\"  Copyright (c) Abraham vd Merwe <abz@blio.com>
+.\"  All rights reserved.
+.\"
+.\"  Redistribution and use in source and binary forms, with or without
+.\"  modification, are permitted provided that the following conditions
+.\"  are met:
+.\"  1. Redistributions of source code must retain the above copyright
+.\"     notice, this list of conditions and the following disclaimer.
+.\"
+.\"  2. Redistributions in binary form must reproduce the above copyright
+.\"     notice, this list of conditions and the following disclaimer in the
+.\"     documentation and/or other materials provided with the distribution.
+.\"  3. Neither the name of the author nor the names of other contributors
+.\"     may be used to endorse or promote products derived from this software
+.\"     without specific prior written permission.
+.\"
+.\"  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+.\"  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+.\"  THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\"  ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+.\"  FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\"  DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+.\"  SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+.\"  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+.\"  OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+.\"  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+.TH BER_DECODE_NULL 3ber  "September 2006" Unix "Library calls"
+.SH NAME
+Basic Encoding Rules (BER) tag decoding routines
+.SH LIBRARIES
+Abz Library (-labz), Debug Library (-ldebug), BER Library (-lber)
+.SH SYNOPSIS
+.nf
+.B #include <ber/ber.h>
+.sp
+.BI "int ber_decode_null(ber_t *" ber ");
+.BI "int ber_decode_sequence(ber_t *" ber ");
+.BI "int ber_decode_get_request(ber_t *" ber ");
+.BI "int ber_decode_get_next_request(ber_t *" ber ");
+.BI "int ber_decode_get_response(ber_t *" ber ");
+.BI "int ber_decode_set_request(ber_t *" ber ");
+.BI "int ber_decode_trap(ber_t *" ber ");
+.BI "int ber_decode_get_bulk_request(ber_t *" ber ");
+.BI "int ber_decode_inform_request(ber_t *" ber ");
+.BI "int ber_decode_snmpv2_trap(ber_t *" ber ");
+.BI "int ber_decode_counter64(uint64_t *" value ", ber_t *" ber ");
+.BI "int ber_decode_integer(int32_t *" value ", ber_t *" ber ");
+.BI "int ber_decode_counter32(uint32_t *" value ", ber_t *" ber ");
+.BI "int ber_decode_gauge32(uint32_t *" value ", ber_t *" ber ");
+.BI "int ber_decode_timeticks(uint32_t *" ticks ", ber_t *" ber ");
+.BI "int ber_decode_ipaddress(uint32_t *" addr ", ber_t *" ber ");
+.BI "int ber_decode_octet_string(octet_string_t *" str ", ber_t *" ber ");
+.BI "int ber_decode_string(char **" str ", ber_t *" ber ");
+.BI "int ber_decode_oid(uint32_t **" oid ", ber_t *" ber ");
+.BI "int ber_decode_get_message(ber_t *" ber ");
+.BI "int ber_decode_put_message(ber_t *" ber ");
+.BI "int ber_decode_auth(ber_t *" ber ");
+.BI "int ber_decode_reset(ber_t *" ber ");
+.BI "int ber_decode_set_level(ber_t *" ber ");
+.fi
+.SH DESCRIPTION
+These routines are used to decode a BER stack. BER or Basic Encoding Rules
+(ITU X.690) is a language used to encode data so that it can be transferred
+and interpreted by different hosts in a platform independant manner.
+.PP
+BER is used to encode data in SNMP and LDAP and probably other popular
+protocols as well. This library used by the author's SNMP software.
+.SH RETURN VALUES
+All of the functions return 0 if successful, -1 if some error occurred. Call
+\fBabz_get_error\fP(3) to retrieve error messages.
+.SH NOTES
+You have to initialize ber_t (buf, offset, size) before calling any of the
+functions.
+.PP
+Even though the size and offset field are unsigned 32-bit integers, the size
+of the buffer should not exceed 2147483647 bytes (maximum 32-bit signed
+integer value).
+.PP
+The functions decode the buffer from front to back. Although the buffer data
+and the size of the buffer won't be changed, the offset is updated to where
+data was decoded.
+.PP
+Remember to free the memory allocated by \fBber_decode_octet_string()\fP and
+\fBber_decode_oid()\fP for returned values.
+.PP
+In the case of the functions where memory is allocated (i.e.
+\fBber_decode_octet_string()\fP and \fBber_decode_oid()\fP), the variables
+are guaranteed to be NULL if the function fails.
+.PP
+IP addresses are stored in network byte order.
+.SH "SEE ALSO"
+ber_encode_null(3), makeoid(3), abz_get_error(3), mem_free(3)
+.SH "AUTHOR"
+Written by Abraham vd Merwe <abz@blio.com>

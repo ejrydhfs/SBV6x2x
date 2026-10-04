@@ -1,0 +1,1614 @@
+/*
+ *
+ * dbridge_ctl.c
+ * Description:
+ * DOCSIS bridge control implementation
+ *
+ * Copyright (C) 2008 Texas Instruments Incorporated - http://www.ti.com/ 
+ * 
+ * 
+ *  Redistribution and use in source and binary forms, with or without 
+ *  modification, are permitted provided that the following conditions 
+ *  are met:
+ *
+ *    Redistributions of source code must retain the above copyright 
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ *    Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the 
+ *    documentation and/or other materials provided with the   
+ *    distribution.
+ *
+ *    Neither the name of Texas Instruments Incorporated nor the names of
+ *    its contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+*/
+
+#define _DBRIDGE_CTL_C_
+
+/*! \file dbridge_ctl.c
+	\brief the docsis bridge control module
+*/
+
+/**************************************************************************/
+/*      INCLUDES:                                                         */
+/**************************************************************************/
+#include "dbridge_main.h"
+#include "dbridge_db.h"
+#include "dbridge_esafe.h"
+#include "dbridge_netdev.h"
+#include "dbridge_mcast.h"
+#include "dbridge_igmp.h"
+#include "dbridge_mdf_ctl.h"
+#include "dbridge_mdf_db.h"
+
+#include <linux/kernel.h>
+#include <linux/proc_fs.h>
+#include <linux/module.h>
+#include <linux/ctype.h>
+
+/**************************************************************************/
+/*      EXTERNS Declaration:                                              */
+/**************************************************************************/
+
+/**************************************************************************/
+/*      DEFINES:                                                          */
+/**************************************************************************/
+
+struct net_device * mtaDev =0;
+
+unsigned int ipv4WanInterface_enable =1;
+unsigned int ipv6WanInterface_enable =1;
+unsigned int ipv4LanInterface_enable =1;
+unsigned int ipv6LanInterface_enable =1;
+
+#ifdef DBRIDGE_LOG
+unsigned int dbridgeDbgLevel = 0;
+#endif
+/**************************************************************************/
+/*      LOCAL DECLARATIONS:                                               */
+/**************************************************************************/
+
+/**************************************************************************/
+/*      LOCAL VARIABLES:                                                  */
+/**************************************************************************/
+static struct proc_dir_entry *dbrctl = NULL;
+static struct proc_dir_entry *dbrctl_init = NULL;
+static struct proc_dir_entry *dbrctl_addcpe = NULL;
+static struct proc_dir_entry *dbrctl_addmta = NULL;
+static struct proc_dir_entry *dbrctl_learncmmac = NULL;
+static struct proc_dir_entry *dbrctl_maxcpe = NULL;
+static struct proc_dir_entry *dbrctl_mode = NULL;
+static struct proc_dir_entry *dbrctl_mcastmac = NULL;
+static struct proc_dir_entry *dbrctl_ipv4WanInterface_enable = NULL;
+static struct proc_dir_entry *dbrctl_ipv6WanInterface_enable = NULL;
+static struct proc_dir_entry *dbrctl_ipv4LanInterface_enable = NULL;
+static struct proc_dir_entry *dbrctl_ipv6LanInterface_enable = NULL;
+
+#ifdef DBRIDGE_LOG
+static struct proc_dir_entry *dbrctl_debuge_level = NULL;
+static struct proc_dir_entry *dbrctl_test = NULL;
+#endif
+static struct proc_dir_entry *dbrctl_countmtaascpe = NULL;   /* cqvds00011606 */
+static struct proc_dir_entry *cm_tftpport = NULL; /*MOTO: cqvds00010131: thmq36*/
+static struct proc_dir_entry *cm_factorymode = NULL; /*MOTO: cqvds00015835: thmq36*/
+
+/**************************************************************************/
+/*      INTERFACE FUNCTIONS Implementation:                               */
+/**************************************************************************/
+
+/**************************************************************************/
+/*      LOCAL FUNCTIONS:                                                  */
+/**************************************************************************/
+
+/* write proc function */
+int dbrctl_write_init(struct file *fp, const char * buf, unsigned long count, void * data);
+int dbrctl_write_addcpe(struct file *fp, const char * buf, unsigned long count, void * data);
+int dbrctl_write_addmta(struct file *fp, const char * buf, unsigned long count, void * data);
+int dbrctl_write_learncmmac(struct file *fp, const char * buf, unsigned long count, void * data);
+int dbrctl_write_maxcpe(struct file *fp, const char * buf, unsigned long count, void * data);
+int dbrctl_write_mode(struct file *fp, const char * buf, unsigned long count, void * data);
+int dbrctl_write_mcastmac(struct file *fp, const char * buf, unsigned long count, void * data);
+int dbrctl_write_ipv4WanInterface_enable(struct file *fp, const char * buf, unsigned long count, void * data);
+int dbrctl_write_ipv6WanInterface_enable(struct file *fp, const char * buf, unsigned long count, void * data);
+int dbrctl_write_ipv4LanInterface_enable(struct file *fp, const char * buf, unsigned long count, void * data);
+int dbrctl_write_ipv6LanInterface_enable(struct file *fp, const char * buf, unsigned long count, void * data);
+#ifdef DBRIDGE_LOG
+int dbrctl_write_debuge_level(struct file *fp, const char * buf, unsigned long count, void * data);
+int dbrctl_write_test(struct file *fp, const char * buf, unsigned long count, void * data);
+#endif
+
+int dbrctl_write_countmtaascpe(struct file *fp, const char * buf, unsigned long count, void * data);   /* cqvds00011606 */
+
+int cm_write_tftpport(struct file *fp, const char * buf, unsigned long count, void * data);   /*MOTO: cqvds00010131 : thmq36 */
+int cm_write_factorymode(struct file *fp, const char * buf, unsigned long count, void * data);   /*MOTO: cqvds00015835 : thmq36 */
+/* read proc function */
+int dbrctl_read_show(char* page, char **start, off_t offset, int count,int *eof, void *data);
+int dbrctl_read_alt(char* page, char **start, off_t offset, int count,int *eof, void *data);
+int dbrctl_read_cpe(char* page, char **start, off_t offset, int count,int *eof, void *data);
+int dbrctl_read_counters(char* page, char **start, off_t offset, int count,int *eof, void *data);
+int dbrctl_read_maxcpe(char* page, char **start, off_t offset, int count,int *eof, void *data);
+int dbrctl_read_mode(char* page, char **start, off_t offset, int count,int *eof, void *data);
+int dbrctl_read_help(char* page, char **start, off_t offset, int count,int *eof, void *data);
+int dbrctl_read_num_of_esafe(char* page, char **start, off_t offset, int count,int *eof, void *data);
+int dbrctl_read_mdfmode(char* page, char **start, off_t offset, int count,int *eof, void *data);
+int dbrctl_read_ipv4WanInterface_enable(char* page, char **start, off_t offset, int count,int *eof, void *data);
+int dbrctl_read_ipv6WanInterface_enable(char* page, char **start, off_t offset, int count,int *eof, void *data);
+int dbrctl_read_ipv4LanInterface_enable(char* page, char **start, off_t offset, int count,int *eof, void *data);
+int dbrctl_read_ipv6LanInterface_enable(char* page, char **start, off_t offset, int count,int *eof, void *data);
+#ifdef DBRIDGE_LOG
+int dbrctl_read_debuge_level(char* page, char **start, off_t offset, int count,int *eof, void *data);
+int dbrctl_read_test(char* page, char **start, off_t offset, int count,int *eof, void *data);
+#endif
+
+int dbrctl_read_countmtaascpe(char* page, char **start, off_t offset, int count,int *eof, void *data);  /* cqvds00011606 */
+int cm_read_tftpport(char* page, char **start, off_t offset, int count,int *eof, void *data);  /*MOTO: cqvds00010131 : thmq36*/
+int cm_read_factorymode(char* page, char **start, off_t offset, int count,int *eof, void *data);  /*MOTO: cqvds00015835 : thmq36*/
+static int stringToMacArray(unsigned char* str, unsigned char* mac_array);
+static unsigned char HexToDec(unsigned char c);
+
+/**************************************************************************/
+/*! \fn int __init dbridgeCtl_init(void)                                     
+ **************************************************************************
+ *  \brief DOCSIS bridge control module initialization.
+ *  \param[in] no input.
+ *  \param[out] no output.
+ *  \return OK or error status.
+ **************************************************************************/
+int __init dbridgeCtl_init(void)
+{
+
+	/* create base directory for dbrctl */
+	dbrctl = create_proc_entry("net/dbrctl", S_IFDIR, NULL);
+	if (dbrctl)
+	{
+		dbrctl->read_proc  = NULL;
+		dbrctl->write_proc = NULL;
+	}
+
+	/* create init proc */
+	dbrctl_init = create_proc_entry("net/dbrctl/init", 0644,NULL);
+	if (dbrctl_init)
+	{
+		dbrctl_init->read_proc  = NULL;
+		dbrctl_init->write_proc = dbrctl_write_init;
+	}
+
+	/* create addcpe proc */
+	dbrctl_addcpe = create_proc_entry("net/dbrctl/addcpe", 0644,NULL);
+	if (dbrctl_addcpe)
+	{
+		dbrctl_addcpe->read_proc  = NULL;
+		dbrctl_addcpe->write_proc = dbrctl_write_addcpe;
+	}
+
+    /* create addmta proc */
+	dbrctl_addmta = create_proc_entry("net/dbrctl/addmta", 0644,NULL);
+	if (dbrctl_addmta)
+	{
+		dbrctl_addmta->read_proc  = NULL;
+		dbrctl_addmta->write_proc = dbrctl_write_addmta;
+	}
+
+	/* create learncmmac proc */
+	dbrctl_learncmmac = create_proc_entry("net/dbrctl/learncmmac", 0644,NULL);
+	if (dbrctl_learncmmac)
+	{
+		dbrctl_learncmmac->read_proc  = NULL;
+		dbrctl_learncmmac->write_proc = dbrctl_write_learncmmac;
+	}
+
+	/* create maxcpe proc */
+	dbrctl_maxcpe = create_proc_entry("net/dbrctl/maxcpe", 0644,NULL);
+	if (dbrctl_maxcpe)
+	{
+		dbrctl_maxcpe->read_proc  = dbrctl_read_maxcpe;
+		dbrctl_maxcpe->write_proc = dbrctl_write_maxcpe;
+	}
+
+	/* create setmode proc */
+	dbrctl_mode = create_proc_entry("net/dbrctl/mode", 0644,NULL);
+	if (dbrctl_mode)
+	{
+		dbrctl_mode->read_proc  = dbrctl_read_mode;
+		dbrctl_mode->write_proc = dbrctl_write_mode;
+	}
+
+	/* create static mcast mac address proc */
+	dbrctl_mcastmac = create_proc_entry("net/dbrctl/mcastmac", 0644,NULL);
+	if (dbrctl_mcastmac)
+	{
+		dbrctl_mcastmac->read_proc  = dbrctl_read_mcastmac;
+		dbrctl_mcastmac->write_proc = dbrctl_write_mcastmac;
+	}
+	/*Removed cqvds00007614 code as a fix for cqvds00011817*/
+
+	/* create ipv4waninterface_enable proc */
+	dbrctl_ipv4WanInterface_enable = create_proc_entry("net/dbrctl/ipv4waninterface_enable", 0644,NULL);
+	if (dbrctl_ipv4WanInterface_enable)
+	{
+		dbrctl_ipv4WanInterface_enable->read_proc  = dbrctl_read_ipv4WanInterface_enable;
+		dbrctl_ipv4WanInterface_enable->write_proc = dbrctl_write_ipv4WanInterface_enable;
+	}
+
+		/* create ipv6waninterface_enable proc */
+	dbrctl_ipv6WanInterface_enable = create_proc_entry("net/dbrctl/ipv6waninterface_enable", 0644,NULL);
+	if (dbrctl_ipv6WanInterface_enable)
+	{
+		dbrctl_ipv6WanInterface_enable->read_proc  = dbrctl_read_ipv6WanInterface_enable;
+		dbrctl_ipv6WanInterface_enable->write_proc = dbrctl_write_ipv6WanInterface_enable;
+	}
+
+	/* create ipv4laninterface_enable proc */
+	dbrctl_ipv4LanInterface_enable = create_proc_entry("net/dbrctl/ipv4laninterface_enable", 0644,NULL);
+	if (dbrctl_ipv4LanInterface_enable)
+	{
+		dbrctl_ipv4LanInterface_enable->read_proc  = dbrctl_read_ipv4LanInterface_enable;
+		dbrctl_ipv4LanInterface_enable->write_proc = dbrctl_write_ipv4LanInterface_enable;
+	}
+
+		/* create ipv6laninterface_enable proc */
+	dbrctl_ipv6LanInterface_enable = create_proc_entry("net/dbrctl/ipv6laninterface_enable", 0644,NULL);
+	if (dbrctl_ipv6LanInterface_enable)
+	{
+		dbrctl_ipv6LanInterface_enable->read_proc  = dbrctl_read_ipv6LanInterface_enable;
+		dbrctl_ipv6LanInterface_enable->write_proc = dbrctl_write_ipv6LanInterface_enable;
+	}
+
+
+#ifdef DBRIDGE_LOG
+	/* create debuge level proc */
+	dbrctl_debuge_level = create_proc_entry("net/dbrctl/dbglevel", 0644,NULL);
+	if (dbrctl_debuge_level)
+	{
+		dbrctl_debuge_level->read_proc  = dbrctl_read_debuge_level;
+		dbrctl_debuge_level->write_proc = dbrctl_write_debuge_level;
+	}
+	dbrctl_test = create_proc_entry("net/dbrctl/test", 0644,NULL);
+	if (dbrctl_test)
+	{
+		dbrctl_test->read_proc  = dbrctl_read_test;
+		dbrctl_test->write_proc = dbrctl_write_test;
+	}
+#endif
+	/*MOTO_S: cqvds00010131: thmq36 */
+	/* create tftp port proc */
+	cm_tftpport = create_proc_entry("net/tftp_port", 0644,NULL);
+	if (cm_tftpport)
+	{
+		cm_tftpport->read_proc  = cm_read_tftpport;
+		cm_tftpport->write_proc = cm_write_tftpport;
+	}
+
+	/*MOTO_E : cqvds00010131*/
+/* MOTO_S cqvds00011606 */
+	/* create count mta as cpe proc */
+	dbrctl_countmtaascpe = create_proc_entry("net/dbrctl/countmtaascpe", 0644,NULL);
+	if (dbrctl_countmtaascpe)
+	{
+		dbrctl_countmtaascpe->read_proc  = dbrctl_read_countmtaascpe;
+		dbrctl_countmtaascpe->write_proc = dbrctl_write_countmtaascpe;
+	}
+/* MOTO_E cqvds00011606 */ 
+
+
+	/*MOTO_S: cqvds00015835: thmq36 */
+	/* create fcatorymode proc */
+	cm_factorymode = create_proc_entry("net/factorymode", 0644,NULL);
+	if (cm_factorymode)
+	{
+		cm_factorymode->read_proc  = cm_read_factorymode;
+		cm_factorymode->write_proc = cm_write_factorymode;
+	}
+
+	/*MOTO_E : cqvds00010131*/
+	/* create read only proc */
+	create_proc_read_entry("net/dbrctl/show",0,NULL,dbrctl_read_show,NULL);
+	create_proc_read_entry("net/dbrctl/alt",0,NULL,dbrctl_read_alt,NULL);
+	create_proc_read_entry("net/dbrctl/cpe",0,NULL,dbrctl_read_cpe,NULL);
+	create_proc_read_entry("net/dbrctl/counters",0,NULL,dbrctl_read_counters,NULL);
+	create_proc_read_entry("net/dbrctl/help",0,NULL,dbrctl_read_help,NULL);
+	create_proc_read_entry("net/dbrctl/igmpdbg",0,NULL,dbrctl_read_igmp_dbg,NULL);
+	create_proc_read_entry("net/dbrctl/igmpif",0,NULL,dbrctl_read_igmp_if_mib,NULL);
+	create_proc_read_entry("net/dbrctl/igmpcache",0,NULL,dbrctl_read_igmp_cache_mib,NULL);
+	create_proc_read_entry("net/dbrctl/numofesafe",0,NULL,dbrctl_read_num_of_esafe,NULL);
+    create_proc_read_entry("net/dbrctl/mdfmode",0,NULL,dbrctl_read_mdfmode,NULL);
+
+    /* DOCSIS bridge MDF ctl initialization */
+    DbridgeMdfCtl_Init();
+
+	return 0; 
+}
+
+/**************************************************************************/
+/*! \fn static void  __exit dbridgeCtl_exit(void)                                    
+ **************************************************************************
+ *  \brief DOCSIS bridge control module exit.
+ *  \param[in] no input.
+ *  \param[out] no output.
+ *  \return None.
+ **************************************************************************/
+static void  __exit dbridgeCtl_exit(void)
+{
+    /* DOCSIS bridge MDF ctl exit */
+    DbridgeMdfCtl_Exit();
+}
+
+
+/**************************************************************************/
+/*! \fn int dbrctl_read_show(char* page, char **start, off_t offset, int count,int *eof, void *data)
+ **************************************************************************
+ *  \brief proc file to get the docsis bridge configuration
+ **************************************************************************/
+int dbrctl_read_show(char* page, char **start, off_t offset, int count,int *eof, void *data)
+{              
+	int len = 0;
+	int index = 0;
+	int num_of_device = 0;
+	DbridgeDevice_t*   ptr_dbridge_dev;
+	int dbridge_mode; 
+	int num_of_esafe = 0;
+        DbridgeEsafeDevice_t*  ptr_esafe_table;
+        int iCountMta = 1; /* cqvds00011606 */
+ 
+	dbridge_mode= DbridgeDb_GetMode();
+	num_of_device=DbridgeDb_GetNumOfDevice();
+        iCountMta = mot_DbridgeDB_GetCountMtaAsCpe(); /* cqvds00011606 */
+
+        len+= sprintf(page+len, "\n Count MTA as CPE : %d", iCountMta); /* cqvds00011606 */ 
+	len+= sprintf(page+len, "\n Docsis bridge mode is: %d  (0=off; 1=reg; 2=pre reg; 3=standby)",dbridge_mode );
+	len+= sprintf(page+len, "\n --------------------------------------------------------------");
+	if (num_of_device)
+	{
+		len+= sprintf(page+len, "\n index\tInterface\tType");
+		for (index = 0; index < num_of_device; index++)
+		{
+			ptr_dbridge_dev = DbridgeDb_DevGetByIndex(index);      
+			if (ptr_dbridge_dev)
+			{
+				switch (ptr_dbridge_dev->net_dev_type)
+				{
+				case DBR_CMCI_NET_DEV_TYPE:
+					len+= sprintf(page+len, "\n %d\t%s\t\tCMCI",index,ptr_dbridge_dev->ptr_interface->name);
+					break;
+
+				case DBR_CABLE_NET_DEV_TYPE:        
+					len+= sprintf(page+len, "\n %d\t%s\t\tCABLE",index,ptr_dbridge_dev->ptr_interface->name);
+					break;
+				case DBR_ESAFE_NET_DEV_TYPE:   
+					len+= sprintf(page+len, "\n %d\t%s\t\tEFAFE",index,ptr_dbridge_dev->ptr_interface->name);
+					break;
+				case DBR_WAN_IP_NET_DEV_TYPE:   
+					len+= sprintf(page+len, "\n %d\t%s\t\tWAN IP",index,ptr_dbridge_dev->ptr_interface->name);
+					break;
+				case DBR_LAN_IP_NET_DEV_TYPE:
+					len+= sprintf(page+len, "\n %d\t%s\t\tLAN IP",index,ptr_dbridge_dev->ptr_interface->name);
+					break;
+				default:
+					len+= sprintf(page+len, "\n %d\t%s\t\tUNKNOWN",index,ptr_dbridge_dev->ptr_interface->name);
+
+				}
+			}
+		}
+	}
+
+	len+= sprintf(page+len, "\n --------------------------------------------------------------");
+	len+= sprintf(page+len, "\n");
+	len+= sprintf(page+len, "\n Esafe configuration");
+	len+= sprintf(page+len, "\n -------------------");
+
+	num_of_esafe = DbridgeEsafe_GetNumOfEsaf();
+	if(num_of_esafe)
+	{
+		len+= sprintf(page+len, "\n esafe\ttargate\tType");
+		for (index = 0; index < num_of_esafe; index++)
+		{
+			ptr_esafe_table = DbridgeEsafe_GetMemberByindex(index);      
+			if (ptr_esafe_table)
+			{
+				len+= sprintf(page+len, "\n %s\t%s\t",ptr_esafe_table->ptr_esafeInterface->name,ptr_esafe_table->ptr_targetInterface->name);
+				switch (ptr_esafe_table->eSafeType)
+				{
+				case DBR_ESAFE_EMTA:
+					len+= sprintf(page+len, "\tEMTA");
+					break;
+				case DBR_ESAFE_EPS:        
+					len+= sprintf(page+len, "\tEPSI");
+					break;
+				case DBR_ESAFE_ESTB_IP:   
+					len+= sprintf(page+len, "\tESTB-IP");
+					break;
+				case DBR_ESAFE_ESTB_DSG:   
+					len+= sprintf(page+len, "\tESTB-DSG");
+					break;
+				case DBR_ESAFE_ETEA:
+					len+= sprintf(page+len, "\tETEA");
+					break;
+				default:
+					len+= sprintf(page+len, "\tUNKNOWN");
+
+				}
+			}
+	
+		}
+	}
+	len+= sprintf(page+len, "\n");
+	*eof = 1;
+	return len ;
+
+}
+
+/**************************************************************************/
+/*! \fn int dbrctl_read_alt(char* page, char **start, off_t offset, int count,int *eof, void *data)
+ **************************************************************************
+ *  \brief proc file to get the adress lookup table
+ **************************************************************************/
+
+int dbrctl_read_alt(char* page, char **start, off_t offset, int count,int *eof, void *data)
+{
+	off_t pos = 0;
+	off_t begin = 0;
+    int len = 0;
+	unsigned int index =0;
+	unsigned int num_of_alt_member = 0;
+	DbridgeAltEntry_t* ptr_dbridge_alt;
+    unsigned int max_cpe = DbridgeDB_GetMaxCpe(); 
+
+
+	len+= sprintf(page+len, "\nAddress Lookup Table");
+	len+= sprintf(page+len, "\n--------------------");
+	len+= sprintf(page+len, "\nMax CPEs\t%d",max_cpe);
+	len+= sprintf(page+len, "\n--------------------");
+
+	num_of_alt_member = DbridgeDb_AltGetNumMember(); 
+	if (num_of_alt_member)
+	{
+		len+= sprintf(page+len, "\nIndex\tMac\t\t\tName\tLearning\tSource\tCpe num");
+		len+= sprintf(page+len, "\n-----\t---\t\t\t----\t--------\t------\t-------");
+	}
+	for (index=0; index< num_of_alt_member; index++)
+	{
+		ptr_dbridge_alt = DbridgeDb_AltGetMemberByIndex(index);
+		if (ptr_dbridge_alt)
+		{
+			len+= sprintf(page+len, "\n%d\t%.2x:%.2x:%.2x:%.2x:%.2x:%.2x",index,
+						  ptr_dbridge_alt->macAddress[0],ptr_dbridge_alt->macAddress[1],
+						  ptr_dbridge_alt->macAddress[2],ptr_dbridge_alt->macAddress[3],
+						  ptr_dbridge_alt->macAddress[4],ptr_dbridge_alt->macAddress[5]);
+
+			if(ptr_dbridge_alt->dbridgeDevice)
+				len+= sprintf(page+len, "\t%s",ptr_dbridge_alt->dbridgeDevice->ptr_interface->name);
+			else
+				len+= sprintf(page+len, "\tNULL");
+
+
+            switch(ptr_dbridge_alt->macLearningFrom)
+			{
+			case DBRIDGE_INIT:
+				len+= sprintf(page+len, "\tInit");
+				break;
+			case CPE_STATIC:
+				len+= sprintf(page+len, "\tStatic");
+				break;
+			case CPE_DYNAMIC:
+				len+= sprintf(page+len, "\tDynamic");
+				break;
+			default:
+				len+= sprintf(page+len, "\tUnknown");
+			}
+
+			if(ptr_dbridge_alt->sourceInterface)
+				len+= sprintf(page+len, "\t\t%s",ptr_dbridge_alt->sourceInterface->name);
+			else
+				len+= sprintf(page+len, "\t\tNULL");
+			len+= sprintf(page+len, "\t%d",ptr_dbridge_alt->cpe_number);
+
+		}
+
+		pos = begin + len;
+		if (pos < offset) {
+			len = 0;
+			begin = pos;
+		}
+		if(pos > offset + count)
+			goto done;
+	}
+	
+
+	len+= sprintf(page+len, "\n");
+
+done:
+
+	*start = page + (offset - begin);
+	len -= (offset - begin);
+
+	if (len > count)
+		len = count;
+	if (len < 0)
+		len = 0;
+
+	return len;
+
+}
+
+
+/**************************************************************************/
+/*! \fn int dbrctl_read_cpe(char* page, char **start, off_t offset, int count,int *eof, void *data)
+ **************************************************************************
+ *  \brief proc file to get the CPEs mac adress list
+ **************************************************************************/
+
+int dbrctl_read_cpe(char* page, char **start, off_t offset, int count,int *eof, void *data)
+{
+	off_t pos = 0;
+	off_t begin = 0;
+	int len = 0;
+	unsigned int index =0;
+	unsigned int num_of_alt_member = 0;
+	DbridgeAltEntry_t* ptr_dbridge_alt;
+	unsigned int max_cpe = DbridgeDB_GetMaxCpe(); 
+
+
+	len+= sprintf(page+len, "\nCPEs List           ");
+	len+= sprintf(page+len, "\n--------------------");
+	len+= sprintf(page+len, "\nMax CPEs\t%d",max_cpe);
+	len+= sprintf(page+len, "\n--------------------");
+
+	num_of_alt_member = DbridgeDb_AltGetNumMember(); 
+	if (num_of_alt_member)
+	{
+		len+= sprintf(page+len, "\n\tMac\t\t\tName\tLearning\tSource\tCpe Num");
+		len+= sprintf(page+len, "\n\t---\t\t\t----\t--------\t------\t-------");
+	}
+	for (index=0; index< num_of_alt_member; index++)
+	{
+		ptr_dbridge_alt = DbridgeDb_AltGetMemberByIndex(index);
+		if (ptr_dbridge_alt)
+		{
+			if ((ptr_dbridge_alt->macLearningFrom == CPE_STATIC)||(ptr_dbridge_alt->macLearningFrom == CPE_DYNAMIC))
+			{
+
+				len+= sprintf(page+len, "\n->\t%.2x:%.2x:%.2x:%.2x:%.2x:%.2x",
+							  ptr_dbridge_alt->macAddress[0],ptr_dbridge_alt->macAddress[1],
+							  ptr_dbridge_alt->macAddress[2],ptr_dbridge_alt->macAddress[3],
+							  ptr_dbridge_alt->macAddress[4],ptr_dbridge_alt->macAddress[5]);
+
+				if (ptr_dbridge_alt->dbridgeDevice)
+					len+= sprintf(page+len, "\t%s",ptr_dbridge_alt->dbridgeDevice->ptr_interface->name);
+				else
+					len+= sprintf(page+len, "\tNULL");
+
+
+				switch (ptr_dbridge_alt->macLearningFrom)
+				{
+				case CPE_STATIC:
+					len+= sprintf(page+len, "\tStatic");
+					break;
+				case CPE_DYNAMIC:
+					len+= sprintf(page+len, "\tDynamic");
+					break;
+				default:
+					len+= sprintf(page+len, "\tUnknown");
+				}
+
+				if (ptr_dbridge_alt->sourceInterface)
+					len+= sprintf(page+len, "\t\t%s",ptr_dbridge_alt->sourceInterface->name);
+				else
+					len+= sprintf(page+len, "\t\tNULL");
+				len+= sprintf(page+len, "\t%d",ptr_dbridge_alt->cpe_number);
+
+			}
+		}
+
+		pos = begin + len;
+		if (pos < offset)
+		{
+			len = 0;
+			begin = pos;
+		}
+		if (pos > offset + count)
+			goto done;
+	}
+
+
+	len+= sprintf(page+len, "\n");
+
+	done:
+
+	*start = page + (offset - begin);
+	len -= (offset - begin);
+
+	if (len > count)
+		len = count;
+	if (len < 0)
+		len = 0;
+
+	return len;
+
+}
+
+/**************************************************************************/
+/*! \fn int dbrctl_read_counters(char* page, char **start, off_t offset, int count,int *eof, void *data)
+ **************************************************************************
+ *  \brief proc file to get docsis bridge counters
+ **************************************************************************/
+
+int dbrctl_read_counters(char* page, char **start, off_t offset, int count,int *eof, void *data)
+{   
+	int len=0;
+	int index=0;
+	DbridgeCounters_t*   ptr_dbridge_counters;
+	struct net_device*  ptr_interface;
+    ptr_dbridge_counters= Dbridge_GetCounters();
+
+	len+= sprintf(page+len, "\nDocsis bridge counters");
+	len+= sprintf(page+len, "\n----------------------");
+	len+= sprintf(page+len, "\nStatic Cpe\t%u",ptr_dbridge_counters->StaticCpe);
+	len+= sprintf(page+len, "\nDynamic Cpe\t%u",ptr_dbridge_counters->DynamicCpe);
+	len+= sprintf(page+len, "\n----------------------");
+	len+= sprintf(page+len, "\nIndex\tName\tIn\tOut\tDiscard\tUnSup\tFltDrop\tFwrdDrop\tInUni\tOutUni\tInMcast\tOutMcast\tInBcast\tOutBcast");
+	len+= sprintf(page+len, "\n-----\t----\t--\t---\t-------\t-----\t-------\t--------\t-----\t------\t-------\t--------\t-------\t--------");
+
+	for (index=0; index < DBR_MAX_ALL_INTERFACE ; index++ )
+	{
+		ptr_interface = dev_get_by_index(index);
+		if (ptr_interface)
+		{                           
+			len+= sprintf(page+len, "\n%d\t%s\t%u\t%u\t%u\t%u\t%u\t%u\t\t%llu\t%llu\t%llu\t%llu\t\t%llu\t%llu",
+                          index,ptr_interface->name,
+						  ptr_dbridge_counters->DevCounters[index].In,
+						  ptr_dbridge_counters->DevCounters[index].Out,
+						  ptr_dbridge_counters->DevCounters[index].Discard,
+						  ptr_dbridge_counters->DevCounters[index].UnSupport,
+						  ptr_dbridge_counters->DevCounters[index].FilterDrop,
+                          ptr_dbridge_counters->DevCounters[index].FwrdRuleDrop,
+                          ptr_dbridge_counters->DevCounters[index].inUcast,
+                          ptr_dbridge_counters->DevCounters[index].outUcast,
+						  ptr_dbridge_counters->DevCounters[index].inMcast,
+						  ptr_dbridge_counters->DevCounters[index].outMcast,
+                          ptr_dbridge_counters->DevCounters[index].inBcast,
+                          ptr_dbridge_counters->DevCounters[index].outBcast
+                          );
+		}
+
+	}
+
+	len+= sprintf(page+len, "\n");
+	*eof = 1;
+	return len;
+}
+
+/**************************************************************************/
+/*! \fn int dbrctl_read_help(char* page, char **start, off_t offset, int count,int *eof, void *data)
+ **************************************************************************
+ *  \brief help for all docsis bridge proc 
+ **************************************************************************/
+int dbrctl_read_help(char* page, char **start, off_t offset, int count,int *eof, void *data)
+{   
+	int len=0;
+
+	len+= sprintf(page+len,"\n =======================================================================");   
+	len+= sprintf(page+len,"\n * init: initialize docsis bridge (Databese and interfaces             *");   
+	len+= sprintf(page+len,"\n * / # echo 1 > /proc/net/dbrctl/init                                  *");   
+	len+= sprintf(page+len,"\n =======================================================================");   
+	len+= sprintf(page+len,"\n * maxcpe: set maximum supported CPEs(from 0 to 64)                    *");   
+	len+= sprintf(page+len,"\n * / # echo <num of cpe> > /proc/net/dbrctl/maxcpe                     *");   
+	len+= sprintf(page+len,"\n =======================================================================");   
+	len+= sprintf(page+len,"\n * addcpe: add cpe mac address to ALT table                            *");   
+	len+= sprintf(page+len,"\n * / # echo  <MAC address> /proc/net/dbrctl/addcpe                     *");   
+	len+= sprintf(page+len,"\n =======================================================================");   
+	len+= sprintf(page+len,"\n * learncmmac: dbride data base learn cm MAC address (wan0 or lan0)    *");   
+	len+= sprintf(page+len,"\n * / # echo  <device name> <mac address> > /proc/net/dbrctl/learncmmac *");   
+	len+= sprintf(page+len,"\n =======================================================================");   
+	len+= sprintf(page+len,"\n * setmode: set docsis bridge mode - off, registered pre_registration  *");   
+	len+= sprintf(page+len,"\n *          or naco_off                                                *");   
+	len+= sprintf(page+len,"\n * / # echo  <mode> > /proc/net/dbrctl/mode                            *");   
+	len+= sprintf(page+len,"\n =======================================================================\n");   
+	len+= sprintf(page+len,"\n * mcastmac: Add Static Multicast mac address                          *");   
+	len+= sprintf(page+len,"\n * / # echo  <MAC address> > /proc/net/dbrctl/mcastmac                 *");   
+	len+= sprintf(page+len,"\n =======================================================================\n");   
+	len+= sprintf(page+len,"\n * dbglevel: Set Docsis Bridge debug level                             *");   
+	len+= sprintf(page+len,"\n * / # echo  <MAC address> > /proc/net/dbrctl/mcastmac                 *");   
+	len+= sprintf(page+len,"\n =======================================================================\n");   
+	len+= sprintf(page+len,"\n * show: get the docsis bridge configuration                           *");   
+	len+= sprintf(page+len,"\n * / # cat /proc/net/dbrctl/show                                       *");   
+	len+= sprintf(page+len,"\n =======================================================================\n");   
+	len+= sprintf(page+len,"\n * alt: get the adress lookup table                                    *");   
+	len+= sprintf(page+len,"\n * / # cat /proc/net/dbrctl/alt                                        *");   
+	len+= sprintf(page+len,"\n =======================================================================\n");   
+	len+= sprintf(page+len,"\n * cpe: get the CPEs mac adress list                                   *");   
+	len+= sprintf(page+len,"\n * / # cat /proc/net/dbrctl/cpe                                        *");   
+	len+= sprintf(page+len,"\n =======================================================================\n");   
+	len+= sprintf(page+len,"\n * counters: get docsis bridge counters                                *");   
+	len+= sprintf(page+len,"\n * / # cat /proc/net/dbrctl/counters                                   *");   
+	len+= sprintf(page+len,"\n =======================================================================\n");   
+	len+= sprintf(page+len,"\n * mcastmac: get static multicast table                                *");   
+	len+= sprintf(page+len,"\n * / # cat /proc/net/dbrctl/mcastmac                                   *");   
+	len+= sprintf(page+len,"\n =======================================================================\n");   
+	len+= sprintf(page+len,"\n * dbglevel: get docsis bridge debug level and options                 *");   
+	len+= sprintf(page+len,"\n * / # cat /proc/net/dbrctl/dbglevel                                   *");   
+	len+= sprintf(page+len,"\n =======================================================================\n");   
+	len+= sprintf(page+len,"\n * mdfmode: get docsis bridge MDF mode                                 *");   
+	len+= sprintf(page+len,"\n * / # cat /proc/net/dbrctl/mdfmode                                    *");   
+	len+= sprintf(page+len,"\n =======================================================================\n");   
+	*eof = 1;
+	return len;
+}
+
+
+/**************************************************************************/
+/*! \fn int dbrctl_write_init(struct file *fp, const char * buf, unsigned long count, void * data)
+ **************************************************************************
+ *  \brief proc file for docsis bridge initialization
+ **************************************************************************/
+
+int dbrctl_write_init(struct file *fp, const char * buf, unsigned long count, void * data)
+{
+	unsigned char local_buf[10];
+	int  ret_val = 0;
+	
+	
+	if (count > 10)
+	{
+		printk(KERN_ERR "Buffer Overflow\n");
+		return -EFAULT;
+	}
+
+	if(copy_from_user(local_buf,buf,count))
+		return -EFAULT;;
+	local_buf[count-1]='\0'; /* Ignoring last \n char */
+	ret_val = count;
+
+
+	if (strcmp("1",local_buf)==0)
+	{
+
+		if(Dbridge_Init())
+			printk(KERN_ERR "Dbridge Init FAILE \n");
+		else
+			printk(KERN_ERR "Dbridge Init SUCSESS\n" );
+	}
+
+	return ret_val;
+}
+
+/**************************************************************************/
+/*! \fn int dbrctl_write_addcpe(struct file *fp, const char * buf, unsigned long count, void * data)
+ **************************************************************************
+ *  \brief proc file to add static cpe to adress lookup table
+ **************************************************************************/
+int dbrctl_write_addcpe(struct file *fp, const char * buf, unsigned long count, void * data)
+{
+	unsigned char local_buf[20];
+	int  ret_val = 0;
+	unsigned char macAddress[MAC_ADDRESS_LEN];
+
+	if (count > 20)
+	{
+		printk(KERN_ERR "Buffer Overflow\n");
+		return -EFAULT;
+	}
+
+	if(copy_from_user(local_buf,buf,count))
+		return -EFAULT;;
+	local_buf[count-1]='\0'; /* Ignoring last \n char */
+	ret_val = count;
+
+	if (stringToMacArray((unsigned char*)&local_buf,(unsigned char*)&macAddress)==0)
+		(void)DbridgeDb_AltAddMac((unsigned char*)&macAddress,CPE_STATIC,NULL,NULL);
+
+	return ret_val;
+}
+
+/**************************************************************************/
+/*! \fn int dbrctl_write_addmta(struct file *fp, const char * buf, unsigned long count, void * data)
+ **************************************************************************
+ *  \brief proc file to add static mta to adress lookup table
+ **************************************************************************/
+int dbrctl_write_addmta(struct file *fp, const char * buf, unsigned long count, void * data)
+{
+	unsigned char local_buf[20];
+	int  ret_val = 0;
+	unsigned char macAddress[MAC_ADDRESS_LEN];
+    DbridgeDevice_t *dbDev;
+
+	if (count > 20)
+	{
+		printk(KERN_ERR "Buffer Overflow\n");
+		return -EFAULT;
+	}
+
+	if(copy_from_user(local_buf,buf,count))
+		return -EFAULT;;
+	local_buf[count-1]='\0'; /* Ignoring last \n char */
+	ret_val = count;
+
+    mtaDev = dev_get_by_name("mta0" /*CONFIG_TI_PACM_MTA_INTERFACE*/);
+	if(mtaDev)
+	{       
+		dbDev = DbridgeDb_DevGetByType(DBR_ESAFE_NET_DEV_TYPE);
+		if (stringToMacArray((unsigned char*)&local_buf,(unsigned char*)&macAddress)==0)
+			(void)DbridgeDb_AltAddMac((unsigned char*)&macAddress,CPE_STATIC,dbDev,mtaDev);
+	}
+	return ret_val;
+}
+
+/**************************************************************************/
+/*! \fn int dbrctl_write_learncmmac(struct file *fp, const char * buf, unsigned long count, void * data)
+ **************************************************************************
+ *  \brief proc file to add mac adress  to adress lookup table
+ **************************************************************************/
+int dbrctl_write_learncmmac(struct file *fp, const char * buf, unsigned long count, void * data)
+{
+	unsigned char local_buf[40];
+	int  ret_val = 0;
+	unsigned char macAddress[MAC_ADDRESS_LEN];
+	unsigned char cmd0[20];
+	unsigned char cmd1[20];
+	int tkn_number;
+
+	if (count > 40)
+	{
+		printk(KERN_ERR "Buffer Overflow\n");
+		return -EFAULT;
+	}
+	if(copy_from_user(local_buf,buf,count))
+		return -EFAULT;;
+	local_buf[count-1]='\0'; /* Ignoring last \n char */
+	ret_val = count;
+
+	tkn_number = sscanf(local_buf,"%s %s",cmd0,cmd1);
+
+	if (stringToMacArray((unsigned char*)&cmd1,(unsigned char*)&macAddress)==0)
+	{
+	   if(DbridgeDb_AltAddMacByDevName((unsigned char*)&macAddress,(unsigned char*)&cmd0)==0)
+		  printk(KERN_INFO "LEARN CM MAC: %.2x:%.2x:%.2x:%.2x:%.2x:%.2x for %s\n",(unsigned char)macAddress[0], (unsigned char)macAddress[1], (unsigned char)macAddress[2],
+		   (unsigned char)macAddress[3], (unsigned char)macAddress[4], (unsigned char)macAddress[5],cmd0);
+	   else
+		   printk(KERN_INFO "UNABLE TO LEARN CM MAC: %.2x:%.2x:%.2x:%.2x:%.2x:%.2x for %s\n",(unsigned char)macAddress[0], (unsigned char)macAddress[1], (unsigned char)macAddress[2],
+			(unsigned char)macAddress[3], (unsigned char)macAddress[4], (unsigned char)macAddress[5],cmd0);
+	}
+	return ret_val;
+
+}
+
+/**************************************************************************/
+/*! \fn int dbrctl_write_learncmmac(struct file *fp, const char * buf, unsigned long count, void * data)
+ **************************************************************************
+ *  \brief proc file to set the maximum  cpe allow 
+ **************************************************************************/
+int dbrctl_write_maxcpe(struct file *fp, const char * buf, unsigned long count, void * data)
+{
+	unsigned char local_buf[10];
+	int  ret_val = 0;
+    unsigned int max_cpe;
+
+	if (count > 10)
+	{
+		printk(KERN_ERR "Buffer Overflow\n");
+		return -EFAULT;
+	}
+
+	if(copy_from_user(local_buf,buf,count))
+		return -EFAULT;;
+	local_buf[count-1]='\0'; /* Ignoring last \n char */
+	ret_val = count;
+	sscanf(local_buf,"%d",&max_cpe);
+	if (max_cpe > DBR_MAX_CPE_ENTRY)
+	{
+		max_cpe= 0; /* error code */
+	}
+	DbridgeDB_SetMaxCpe(max_cpe);
+	return ret_val;
+
+}
+
+/**************************************************************************/
+/*! \fn int dbrctl_write_learncmmac(struct file *fp, const char * buf, unsigned long count, void * data)
+ **************************************************************************
+ *  \brief proc file to set the docsis bridge mode
+ **************************************************************************/
+int dbrctl_write_mode(struct file *fp, const char * buf, unsigned long count, void * data)
+{
+	unsigned char local_buf[30];
+	int  ret_val = 0;
+	unsigned int sucsess=0;
+
+	if (count > 30)
+	{
+		printk(KERN_ERR "Buffer Overflow\n");
+		return -EFAULT;
+	}
+	if(copy_from_user(local_buf,buf,count))
+		return -EFAULT;
+	local_buf[count-1]='\0'; /* Ignoring last \n char */
+	ret_val = count;
+        sucsess = 1;
+
+	if(strcmp("off",local_buf)==0)
+	{
+		DbridgeDb_SetMode(DBR_OFF_MODE);
+	}
+	else if(strcmp("registered",local_buf)==0)
+	{
+		DbridgeDb_SetMode(DBR_REGISTERED_MODE);
+	}
+	else if(strcmp("pre_registration",local_buf)==0)
+	{
+		DbridgeDb_SetMode(DBR_PRE_REGISTRATION_MODE);
+	}
+	else if(strcmp("naco_off",local_buf)==0)
+	{
+		DbridgeDb_SetMode(DBR_NACO_OFF_MODE);
+	}
+	else if(strcmp("standbay",local_buf)==0)
+        {
+	   DbridgeDb_SetMode(DBR_STANDBY_MODE);
+        }
+        else
+        sucsess=0;
+
+	if(sucsess)
+		printk(KERN_INFO "Docsis bridge mode set to %s\n",local_buf);
+	else
+		printk(KERN_INFO "Docsis bridge mode %s illegal\n",local_buf);
+	return ret_val;
+}
+
+/**************************************************************************/
+/*! \fn int dbrctl_read_maxcpe(char* page, char **start, off_t offset, int count,int *eof, void *data)
+ **************************************************************************
+ *  \brief read max cpe allow 
+ **************************************************************************/
+int dbrctl_read_maxcpe(char* page, char **start, off_t offset, int count,int *eof, void *data)
+{
+	int len=0;
+    unsigned int max_cpe = DbridgeDB_GetMaxCpe(); 
+    
+	len+= sprintf(page+len, "%d\n",max_cpe);
+	*eof = 1;
+	return len;
+
+}
+
+/**************************************************************************/
+/*! \fn int dbrctl_read_mode(char* page, char **start, off_t offset, int count,int *eof, void *data)
+ **************************************************************************
+ *  \brief read docsis bridge mode
+ **************************************************************************/
+
+int dbrctl_read_mode(char* page, char **start, off_t offset, int count,int *eof, void *data)
+{
+	int len=0;
+    unsigned int mode = DbridgeDb_GetMode(); 
+	switch(mode)
+		{
+	case DBR_OFF_MODE:
+		len+= sprintf(page+len, "off \n");
+		break;
+	case DBR_REGISTERED_MODE:             
+		len+= sprintf(page+len, "registered \n");
+		break;
+	case DBR_PRE_REGISTRATION_MODE:  
+		len+= sprintf(page+len, "pre_registration \n");
+		break;
+	case DBR_NACO_OFF_MODE:
+		len+= sprintf(page+len, "naco_off \n");
+		break;
+	case DBR_STANDBY_MODE:
+		len+= sprintf(page+len, "standbay \n");
+		break;
+	default:
+		len+= sprintf(page+len, "Unknown mode\n");
+	}
+	*eof = 1;
+	return len;
+
+}
+
+/**************************************************************************/
+/*! \fn int dbrctl_write_mcastmac(struct file *fp, const char * buf, unsigned long count, void * data)
+ **************************************************************************
+ *  \brief proc file to add static Mcast MAC address
+ **************************************************************************/
+int dbrctl_write_mcastmac(struct file *fp, const char * buf, unsigned long count, void * data)
+{
+	unsigned char local_buf[40];
+	int  ret_val = 0;
+	unsigned char macAddress[MAC_ADDRESS_LEN];
+	unsigned char cmd0[20];
+    unsigned int filter_type;
+	int tkn_number;
+
+
+
+ 
+	if (count > 40)
+	{
+		printk(KERN_ERR "Buffer Overflow\n");
+		return -EFAULT;
+	}
+	if(copy_from_user(local_buf,buf,count))
+		return -EFAULT;;
+	local_buf[count-1]='\0'; /* Ignoring last \n char */
+	ret_val = count;
+    
+	tkn_number = sscanf(local_buf,"%s %d",cmd0 ,&filter_type);
+	if (stringToMacArray((unsigned char*)&cmd0,(unsigned char*)&macAddress)==0)
+	/* Add test that this is Mcast Mac address */
+	(void)DbridgeDb_AddMcastMac((unsigned char*)&macAddress,filter_type);
+
+	return ret_val;
+}
+
+/**************************************************************************/
+/*! \fn int dbrctl_read_num_of_esafe(char* page, char **start, off_t offset, int count,int *eof, void *data)
+ **************************************************************************
+ *  \brief read num of eSafe connect to the bridge 
+ **************************************************************************/
+int dbrctl_read_num_of_esafe(char* page, char **start, off_t offset, int count,int *eof, void *data)
+{
+	int len=0;
+    unsigned int num_of_esafe = DbridgeEsafe_GetNumOfEsaf(); 
+    
+	len+= sprintf(page+len, "%d\n",num_of_esafe);
+	*eof = 1;
+	return len;
+
+}
+
+
+/**************************************************************************/
+/*! \fn int dbrctl_read_mdfmode(char* page, char **start, off_t offset, int count,int *eof, void *data)
+ **************************************************************************
+ *  \brief read DOCSIS bridge MDF mode
+ **************************************************************************/
+int dbrctl_read_mdfmode(char* page, char **start, off_t offset, int count,int *eof, void *data)
+{
+	int len=0;
+    unsigned int mdfMode = 0;
+
+    DbridgeMdfDb_GetMdfMode(&mdfMode);
+
+    switch(mdfMode)
+	{
+		case DBR_MDF_DISABLE_MODE:
+			len+= sprintf(page+len, "Disabled \n");
+			break;
+		case DBR_MDF_ENABLE_MODE:             
+			len+= sprintf(page+len, "Enabled \n");
+			break;
+		default:
+			len+= sprintf(page+len, "Unknown mode\n");
+	}
+
+	*eof = 1;
+	return len;
+}
+
+
+/**************************************************************************/
+/*! \fn int dbrctl_write_ipv4WanInterface_enable(struct file *fp, const char * buf, unsigned long count, void * data)
+ **************************************************************************
+ *  \brief proc file to set the ipv4 wan Interface enable
+ **************************************************************************/
+int dbrctl_write_ipv4WanInterface_enable(struct file *fp, const char * buf, unsigned long count, void * data)
+{
+	unsigned char local_buf[10];
+	int  ret_val = 0;
+	if (count > 10)
+	{
+		printk(KERN_ERR "Buffer Overflow\n");
+		return -EFAULT;
+	}
+
+	if(copy_from_user(local_buf,buf,count))
+		return -EFAULT;;
+	local_buf[count-1]='\0'; 
+	ret_val = count;
+	sscanf(local_buf,"%d",&ipv4WanInterface_enable);
+	return ret_val;
+}
+
+
+/**************************************************************************/
+/*! \fn int dbrctl_read_ipv4WanInterface_enable(char* page, char **start, off_t offset, int count,int *eof, void *data)
+ **************************************************************************
+ *  \brief read ipv4 waN interface enable 
+ **************************************************************************/
+int dbrctl_read_ipv4WanInterface_enable(char* page, char **start, off_t offset, int count,int *eof, void *data)
+{
+	int len=0;
+
+	len+= sprintf(page+len, "%d\n",ipv4WanInterface_enable);
+	*eof = 1;
+	return len;
+
+}
+
+/**************************************************************************/
+/*! \fn int dbrctl_write_ipv6WanInterface_enable(struct file *fp, const char * buf, unsigned long count, void * data)
+ **************************************************************************
+ *  \brief proc file to set the ipv6 wan interface enable
+ **************************************************************************/
+int dbrctl_write_ipv6WanInterface_enable(struct file *fp, const char * buf, unsigned long count, void * data)
+{
+	unsigned char local_buf[10];
+	int  ret_val = 0;
+	if (count > 10)
+	{
+		printk(KERN_ERR "Buffer Overflow\n");
+		return -EFAULT;
+	}
+
+	if(copy_from_user(local_buf,buf,count))
+		return -EFAULT;;
+	local_buf[count-1]='\0'; 
+	ret_val = count;
+	sscanf(local_buf,"%d",&ipv6WanInterface_enable);
+	return ret_val;
+}
+
+
+
+/**************************************************************************/
+/*! \fn int dbrctl_read_ipv6WanInterface_enable(char* page, char **start, off_t offset, int count,int *eof, void *data)
+ **************************************************************************
+ *  \brief read ipv6 WAN interface enable 
+ **************************************************************************/
+int dbrctl_read_ipv6WanInterface_enable(char* page, char **start, off_t offset, int count,int *eof, void *data)
+{
+	int len=0;
+    
+	len+= sprintf(page+len, "%d\n",ipv6WanInterface_enable);
+	*eof = 1;
+	return len;
+
+}
+
+/**************************************************************************/
+/*! \fn int dbrctl_write_ipv4LanInterface_enable(struct file *fp, const char * buf, unsigned long count, void * data)
+ **************************************************************************
+ *  \brief proc file to set the ipv4 lan Interface enable
+ **************************************************************************/
+int dbrctl_write_ipv4LanInterface_enable(struct file *fp, const char * buf, unsigned long count, void * data)
+{
+	unsigned char local_buf[10];
+	int  ret_val = 0;
+	if (count > 10)
+	{
+		printk(KERN_ERR "Buffer Overflow\n");
+		return -EFAULT;
+	}
+
+	if(copy_from_user(local_buf,buf,count))
+		return -EFAULT;;
+	local_buf[count-1]='\0'; 
+	ret_val = count;
+	sscanf(local_buf,"%d",&ipv4LanInterface_enable);
+	return ret_val;
+}
+
+
+/**************************************************************************/
+/*! \fn int dbrctl_read_ipv4LanInterface_enable(char* page, char **start, off_t offset, int count,int *eof, void *data)
+ **************************************************************************
+ *  \brief read ipv4 Laninterface enable 
+ **************************************************************************/
+int dbrctl_read_ipv4LanInterface_enable(char* page, char **start, off_t offset, int count,int *eof, void *data)
+{
+	int len=0;
+    
+	len+= sprintf(page+len, "%d\n",ipv4LanInterface_enable);
+	*eof = 1;
+	return len;
+
+}
+
+/**************************************************************************/
+/*! \fn int dbrctl_write_ipv6LanInterface_enable(struct file *fp, const char * buf, unsigned long count, void * data)
+ **************************************************************************
+ *  \brief proc file to set the ipv6 Lan interface enable
+ **************************************************************************/
+int dbrctl_write_ipv6LanInterface_enable(struct file *fp, const char * buf, unsigned long count, void * data)
+{
+	unsigned char local_buf[10];
+	int  ret_val = 0;
+	if (count > 10)
+	{
+		printk(KERN_ERR "Buffer Overflow\n");
+		return -EFAULT;
+	}
+
+	if(copy_from_user(local_buf,buf,count))
+		return -EFAULT;;
+	local_buf[count-1]='\0'; 
+	ret_val = count;
+	sscanf(local_buf,"%d",&ipv6LanInterface_enable);
+	return ret_val;
+}
+
+
+
+/**************************************************************************/
+/*! \fn int dbrctl_read_ipv6LanInterface_enable(char* page, char **start, off_t offset, int count,int *eof, void *data)
+ **************************************************************************
+ *  \brief read ipv6 LAN interface enable 
+ **************************************************************************/
+int dbrctl_read_ipv6LanInterface_enable(char* page, char **start, off_t offset, int count,int *eof, void *data)
+{
+	int len=0;
+    
+	len+= sprintf(page+len, "%d\n",ipv6LanInterface_enable);
+	*eof = 1;
+	return len;
+
+}
+
+/**************************************************************************/
+/*! \fn static int stringToMacArray
+ **************************************************************************
+ *  \brief Converts mac address string in to array .
+ *  \param[in] str mac addres string 
+ *  \param[out] mac_array mac addres array 
+ *  \return The decimal value of an hexadecimal character.
+ **************************************************************************/
+static int stringToMacArray(unsigned char* str, unsigned char* mac_array)
+{
+	int i;
+	unsigned int uint32Val;
+	unsigned int pDigitPos;
+	unsigned int pLength;
+	unsigned int pPos;
+
+	for (i = 0; i < MAC_ADDRESS_LEN; i++)
+	{
+		mac_array[i] = 0;
+	}
+	i = 0;
+	uint32Val = 0;
+	pDigitPos = 0;
+
+	pLength = strlen(str);
+	if (pLength > 17)
+	{
+		return -1;
+	}
+
+	for (pPos = 0; pPos < pLength; pPos++)
+	{
+		if (str[pPos] == '-' || str[pPos] ==':')
+		{
+			if (i >= 5)
+			{
+				/* its the sixth '-' */
+				return -1; 
+			}
+			if ((uint32Val == 0) && (pDigitPos == 0))
+			{
+				return -1;
+			}
+			mac_array[i] = uint32Val;
+			i++;
+			uint32Val = 0;
+			pDigitPos = 0;
+		} else if (isxdigit(str[pPos]))
+		{
+			pDigitPos++;
+			if (pDigitPos > 2)
+			{
+				return -1;
+			}
+			uint32Val = uint32Val * 16;
+			if (isdigit(str[pPos]))
+			{
+				uint32Val += (str[pPos] - '0');
+			} else
+			{
+				uint32Val += HexToDec(str[pPos]);
+			}
+		} else
+		{
+			return -1;
+		}
+	}
+
+	if (i < 5)
+	{
+		return -1;
+	}
+
+	/* its the last octet */
+	if ((uint32Val == 0) && (pDigitPos == 0))
+	{
+		return -1;
+	}
+	mac_array[i] = uint32Val;
+
+	return 0;
+
+}
+
+
+/**************************************************************************/
+/*! \fn static unsigned char HexToDec(unsigned char c)
+ **************************************************************************
+ *! \fn static unsigned unsigned char HexToDec(unsigned char c)
+ *  \brief Converts hexadecimal character into decimal value.
+ *  \param[in] c Hexadecimal character
+ *  \return The decimal value of an hexadecimal character.
+ **************************************************************************/
+static unsigned char HexToDec(unsigned char c)
+{
+	if (c >= 'A' && c <= 'F')
+	{
+		return(c - 'A' + 10);
+	} else if (c >= 'a' && c <= 'f')
+	{
+		return(c - 'a' + 10);
+	}
+	return c - '0';
+}
+
+#ifdef DBRIDGE_LOG
+ /***************************************************************************
+ *  \brief proc file to get static Mcast MAc 
+ **************************************************************************/
+int dbrctl_read_debuge_level(char* page, char **start, off_t offset, int count,int *eof, void *data)
+{
+	int len=0;
+	len+= sprintf(page+len, "\nDebuge level is %d", dbridgeDbgLevel);
+	len+= sprintf(page+len, "\nDebuge level Option:");
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_REG_TX\t\t%d (0x%x)",DBRIDGE_DBG_REG_TX,DBRIDGE_DBG_REG_TX);
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_REG_RECIVE\t\t%d (0x%x)",DBRIDGE_DBG_REG_RECIVE,DBRIDGE_DBG_REG_RECIVE);
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_REG_RX_CMCI\t\t%d (0x%x)",DBRIDGE_DBG_REG_RX_CMCI,DBRIDGE_DBG_REG_RX_CMCI);
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_REG_RX_LANIP\t\t%d (0x%x)",DBRIDGE_DBG_REG_RX_LANIP,DBRIDGE_DBG_REG_RX_LANIP);
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_REG_RX_WANIP\t\t%d (0x%x)",DBRIDGE_DBG_REG_RX_WANIP,DBRIDGE_DBG_REG_RX_WANIP);
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_REG_RX_CABLE\t\t%d (0x%x)",DBRIDGE_DBG_REG_RX_CABLE,DBRIDGE_DBG_REG_RX_CABLE);
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_REG_TX_FLOOD\t\t%d (0x%x)",DBRIDGE_DBG_REG_TX_FLOOD,DBRIDGE_DBG_REG_TX_FLOOD);  	
+	len+= sprintf(page+len, "\nDBRIDGE_DBG_REG_TX_IF\t\t%d (0x%x)",DBRIDGE_DBG_REG_TX_IF,DBRIDGE_DBG_REG_TX_IF);
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_MCAST_CABLE\t\t%d (0x%x)",DBRIDGE_DBG_MCAST_CABLE,DBRIDGE_DBG_MCAST_CABLE);
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_REG_IGMP\t\t%d (0x%x)",DBRIDGE_DBG_REG_IGMP,DBRIDGE_DBG_REG_IGMP);
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_PREREG_RX_CABLE\t\t%d (0x%x)",DBRIDGE_DBG_PREREG_RX_CABLE,DBRIDGE_DBG_PREREG_RX_CABLE);	
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_CLASSIFIER\t\t%d (0x%x)",DBRIDGE_DBG_CLASSIFIER,DBRIDGE_DBG_CLASSIFIER);
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_FILTER\t\t%d (0x%x)",DBRIDGE_DBG_FILTER,DBRIDGE_DBG_FILTER);	
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_MDF\t\t%d (0x%x)",DBRIDGE_DBG_MDF,DBRIDGE_DBG_MDF);	
+	len+= sprintf(page+len, "\n");
+	*eof = 1;
+	return len;
+}
+int dbrctl_read_test(char* page, char **start, off_t offset, int count,int *eof, void *data)
+{
+	int len=0;
+	len+= sprintf(page+len, "\nxxxxDebuge level is %d", dbridgeDbgLevel);
+	len+= sprintf(page+len, "\nDebuge level Option:");
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_REG_TX\t\t%d (0x%x)",DBRIDGE_DBG_REG_TX,DBRIDGE_DBG_REG_TX);
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_REG_RECIVE\t\t%d (0x%x)",DBRIDGE_DBG_REG_RECIVE,DBRIDGE_DBG_REG_RECIVE);
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_REG_RX_CMCI\t\t%d (0x%x)",DBRIDGE_DBG_REG_RX_CMCI,DBRIDGE_DBG_REG_RX_CMCI);
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_REG_RX_LANIP\t\t%d (0x%x)",DBRIDGE_DBG_REG_RX_LANIP,DBRIDGE_DBG_REG_RX_LANIP);
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_REG_RX_WANIP\t\t%d (0x%x)",DBRIDGE_DBG_REG_RX_WANIP,DBRIDGE_DBG_REG_RX_WANIP);
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_REG_RX_CABLE\t\t%d (0x%x)",DBRIDGE_DBG_REG_RX_CABLE,DBRIDGE_DBG_REG_RX_CABLE);
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_REG_TX_FLOOD\t\t%d (0x%x)",DBRIDGE_DBG_REG_TX_FLOOD,DBRIDGE_DBG_REG_TX_FLOOD);  	
+	len+= sprintf(page+len, "\nDBRIDGE_DBG_REG_TX_IF\t\t%d (0x%x)",DBRIDGE_DBG_REG_TX_IF,DBRIDGE_DBG_REG_TX_IF);
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_MCAST_CABLE\t\t%d (0x%x)",DBRIDGE_DBG_MCAST_CABLE,DBRIDGE_DBG_MCAST_CABLE);
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_REG_IGMP\t\t%d (0x%x)",DBRIDGE_DBG_REG_IGMP,DBRIDGE_DBG_REG_IGMP);
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_PREREG_RX_CABLE\t\t%d (0x%x)",DBRIDGE_DBG_PREREG_RX_CABLE,DBRIDGE_DBG_PREREG_RX_CABLE);	
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_CLASSIFIER\t\t%d (0x%x)",DBRIDGE_DBG_CLASSIFIER,DBRIDGE_DBG_CLASSIFIER);
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_FILTER\t\t%d (0x%x)",DBRIDGE_DBG_FILTER,DBRIDGE_DBG_FILTER);	
+  	len+= sprintf(page+len, "\nDBRIDGE_DBG_MDF\t\t%d (0x%x)",DBRIDGE_DBG_MDF,DBRIDGE_DBG_MDF);	
+	len+= sprintf(page+len, "\n");
+	*eof = 1;
+	return len;
+}
+
+/**************************************************************************/
+/*! \fn int dbrctl_write_debuge_level(struct file *fp, const char * buf, unsigned long count, void * data)
+ **************************************************************************
+ *  \brief proc file to add static Mcast MAC address
+ **************************************************************************/
+int dbrctl_write_debuge_level(struct file *fp, const char * buf, unsigned long count, void * data)
+{
+	unsigned char local_buf[10];
+	int  ret_val = 0;
+	if (count > 10)
+	{
+		printk(KERN_ERR "Buffer Overflow\n");
+		return -EFAULT;
+	}
+
+	if(copy_from_user(local_buf,buf,count))
+		return -EFAULT;;
+	local_buf[count-1]='\0'; 
+	ret_val = count;
+	sscanf(local_buf,"%d",&dbridgeDbgLevel);
+	return ret_val;
+}
+
+
+	/*Removed cqvds00007614 code as a fix for cqvds00011817*/
+int dbrctl_write_test(struct file *fp, const char * buf, unsigned long count, void * data)
+{
+	unsigned char local_buf[10];
+	int  ret_val = 0;
+	if (count > 10)
+	{
+		printk(KERN_ERR "Buffer Overflow\n");
+		return -EFAULT;
+	}
+
+	if(copy_from_user(local_buf,buf,count))
+		return -EFAULT;;
+	local_buf[count-1]='\0'; 
+	ret_val = count;
+	sscanf(local_buf,"xxx %d",&dbridgeDbgLevel);
+	return ret_val;
+}
+
+
+#endif
+
+
+EXPORT_SYMBOL(mtaDev);
+ 
+/* MOTO_S cqvds00011606 */
+
+/**************************************************************************/
+/*! \fn int dbrctl_read_countmtaascpe(char* page, char **start, off_t offset, int count,int *eof, void *data)
+ **************************************************************************
+ *  \brief read countmtaascpe 
+ **************************************************************************/
+int dbrctl_read_countmtaascpe(char* page, char **start, off_t offset, int count,int *eof, void *data)
+{
+    int len=0;
+    unsigned int uiCountMta = mot_DbridgeDB_GetCountMtaAsCpe(); 
+    
+    len+= sprintf(page+len, "%d\n",uiCountMta);
+    *eof = 1;
+    return len;
+
+}
+
+/**************************************************************************/
+/*! \fn int dbrctl_write_countmtaascpe(struct file *fp, const char * buf, unsigned long count, void * data)
+ **************************************************************************
+ *  \brief proc file to set the countmtaascpe 
+ **************************************************************************/
+int dbrctl_write_countmtaascpe(struct file *fp, const char * buf, unsigned long count, void * data)
+{
+    unsigned char local_buf[10];
+    int  ret_val = 0;
+    unsigned int uiCountMta;
+
+    if (count > 10)
+    {
+        printk(KERN_ERR "Buffer Overflow\n");
+ 	return -EFAULT;
+    }
+
+    if  (copy_from_user(local_buf,buf,count))
+        return -EFAULT;;
+
+    local_buf[count-1]='\0'; /* Ignoring last \n char */
+    ret_val = count;
+    sscanf(local_buf,"%d",&uiCountMta);
+    if (uiCountMta > 1)
+    {
+	uiCountMta = 1;
+    }
+    mot_DbridgeDB_SetCountMtaAsCpe(uiCountMta);
+    return ret_val;
+}
+/*MOTO_E cqvds00011606 */
+
+
+
+/*MOTO_S: cqvds00010131 :thmq36 - Prevent software upgrade from CPE IP*/ 
+
+/**************************************************************************/
+/*! \fn int cm_write_tftpport(struct file *fp, const char * buf, unsigned long count, void * data)
+ **************************************************************************
+ *  \brief proc file to set the CM tftp port value  
+ **************************************************************************/
+int cm_write_tftpport(struct file *fp, const char * buf, unsigned long count, void * data)
+{
+	unsigned char acLocal_buf[10];
+	int  iRetval = 0;
+        unsigned int uiPortNum = 0;
+
+	if (count > 10)
+	{
+		printk(KERN_ERR "Buffer Overflow\n");
+		return -EFAULT;
+	}
+
+	if(copy_from_user(acLocal_buf,buf,count))
+		return -EFAULT;;
+	acLocal_buf[count-1]='\0'; /* Ignoring last \n char */
+	iRetval = count;
+	sscanf(acLocal_buf,"%d",&uiPortNum);
+	mot_SetCmTftpPort(uiPortNum);
+	return iRetval;
+
+}
+
+/**************************************************************************/
+/*! \fn int cm_read_tftpport(char* page, char **start, off_t offset, int count,int *eof, void *data)
+ **************************************************************************
+ *  \brief to read CM's tftp port value 
+ **************************************************************************/
+int cm_read_tftpport(char* page, char **start, off_t offset, int count,int *eof, void *data)
+{
+	int iLength = 0;
+        unsigned int uiPortNum = mot_GetCmTftpPort(); 
+    
+	iLength = iLength + sprintf(page+iLength, "%d\n",uiPortNum);
+	*eof = 1;
+	return iLength;
+
+}
+/*MOTO_E : cqvds00010131*/ 
+
+/*MOTO_S: cqvds00015835 :thmq36 - allow sw_dl from cli/factory MIB when factory mode is enabled */ 
+
+/**************************************************************************/
+/*! \fn int cm_write_factorymode(struct file *fp, const char * buf, unsigned long count, void * data)
+ **************************************************************************
+ *  \brief proc file to set the factorymode value  
+ **************************************************************************/
+int cm_write_factorymode(struct file *fp, const char * buf, unsigned long count, void * data)
+{
+	unsigned char acLocal_buf[10];
+	int  iRetval = 0;
+        unsigned int uiFCmode = 0;
+
+	if (count > 10)
+	{
+		printk(KERN_ERR "Buffer Overflow\n");
+		return -EFAULT;
+	}
+
+	if(copy_from_user(acLocal_buf,buf,count))
+		return -EFAULT;;
+	acLocal_buf[count-1]='\0'; /* Ignoring last \n char */
+	iRetval = count;
+	sscanf(acLocal_buf,"%d",&uiFCmode);
+	mot_SetCmFactoryMode(uiFCmode);
+	return iRetval;
+
+}
+
+/**************************************************************************/
+/*! \fn int cm_read_factorymode(char* page, char **start, off_t offset, int count,int *eof, void *data)
+ **************************************************************************
+ *  \brief to read factory mode value 
+ **************************************************************************/
+int cm_read_factorymode(char* page, char **start, off_t offset, int count,int *eof, void *data)
+{
+	int iLength = 0;
+        unsigned int uiFCmode = mot_GetCmFactoryMode(); 
+    
+	iLength = iLength + sprintf(page+iLength, "%d\n",uiFCmode);
+	*eof = 1;
+	return iLength;
+
+}
+/*MOTO_E : cqvds00015835*/ 
+
+
+module_init(dbridgeCtl_init)
+module_exit(dbridgeCtl_exit)
+MODULE_LICENSE("GPL");
+

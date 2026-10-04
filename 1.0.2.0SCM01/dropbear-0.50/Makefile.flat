@@ -1,0 +1,104 @@
+#
+# Makefile Wrapper file for building dropbear package
+#
+# Copyright (C) 2008 Texas Instruments Incorporated - http://www.ti.com/ 
+# 
+# 
+#  Redistribution and use in source and binary forms, with or without 
+#  modification, are permitted provided that the following conditions 
+#  are met:
+#
+#    Redistributions of source code must retain the above copyright 
+#    notice, this list of conditions and the following disclaimer.
+#
+#    Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the 
+#    documentation and/or other materials provided with the   
+#    distribution.
+#
+#    Neither the name of Texas Instruments Incorporated nor the names of
+#    its contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+#
+#  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
+#  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+#  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+#  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
+#  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
+#  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+#  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+#  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+#  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+#  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+#  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+
+# Include this file that contains definitions.
+-include $(TARGET_HOME)/TI_Build.make
+-include $(TARGET_HOME)/.config
+
+ifeq ($(CONFIG_TI_DROPBEAR_SERVER),y) 
+dropbear_programs=dropbear
+endif
+ifeq ($(CONFIG_TI_DROPBEAR_CLIENT),y) 
+dropbear_programs+= dbclient
+endif
+ifeq ($(CONFIG_TI_DROPBEAR_SCP),y) 
+dropbear_programs+= scp
+endif
+ifeq ($(CONFIG_TI_DROPBEAR_KEY),y) 
+dropbear_host_programs+= dropbearkey
+build_host_programs = 1
+endif
+ifeq ($(CONFIG_TI_DROPBEAR_KEYCONVERTER),y) 
+dropbear_host_programs+= dropbearconvert
+build_host_programs = 1
+endif
+
+ifeq ($(build_host_programs),1)
+all: build install build_host install_host
+else
+all: build install
+endif
+
+build:
+	$(MAKE) CC=$(CROSS)gcc RANLIB=$(CROSS)ranlib AR=$(CROSS)ar strip=$(CROSS)strip SHARED=ON PROGRAMS="$(dropbear_programs)" LDFLAGS+=-L$(TI_filesystem_path)$(TI_rlibdir)
+
+install:
+	$(MAKE) CC=$(CROSS)gcc RANLIB=$(CROSS)ranlib AR=$(CROSS)ar -i prefix=$(TI_filesystem_path)$(TI_rusrdir) PROGRAMS="$(dropbear_programs)" install
+
+build_host:
+	@if [ -e ./Makefile ]; then \
+	$(MAKE) CC=gcc PROGRAMS="$(dropbear_host_programs)" clean; \
+	fi
+	$(MAKE) CC=gcc RANLIB=ranlib AR=ar strip=strip SHARED=ON PROGRAMS="$(dropbear_host_programs)" LDFLAGS= 
+
+install_host:
+	$(MAKE) CC=gcc RANLIB=ranlib AR=ar -i prefix=$(TI_tools_path)$(TI_rusrdir) PROGRAMS="$(dropbear_host_programs)" install
+
+clean:
+	@if [ -e ./Makefile ]; then \
+	$(MAKE) CC=$(CROSS)gcc clean; \
+	fi
+#	-rm -f Makefile config.log config.status
+	-rm -f $(TI_filesystem_path)$(TI_sbindir)/dropbear*
+	-rm -f $(TI_tools_path)/bin/dropbear*
+	-rm -f $(TI_tools_path)$(TI_sbindir)/dropbear*
+ifeq ($(CONFIG_TI_DROPBEAR_CLIENT),y) 
+	-rm -f $(TI_filesystem_path)$(TI_sbindir)/dbclient
+endif
+ifeq ($(CONFIG_TI_DROPBEAR_SCP),y) 
+	-rm -f $(TI_filesystem_path)$(TI_sbindir)/scp
+endif
+
+distclean:
+#	-rm -f Makefile config.log config.status
+	-rm -f $(TI_filesystem_path)$(TI_sbindir)/dropbear*
+	-rm -f $(TI_tools_path)/bin/dropbear*
+	-rm -f $(TI_tools_path)$(TI_sbindir)/dropbear*
+ifeq ($(CONFIG_TI_DROPBEAR_CLIENT),y) 
+	-rm -f $(TI_filesystem_path)$(TI_sbindir)/dbclient
+endif
+ifeq ($(CONFIG_TI_DROPBEAR_SCP),y) 
+	-rm -f $(TI_filesystem_path)$(TI_sbindir)/scp
+endif

@@ -1,0 +1,12 @@
+config TI_TFTP
+    bool "TI TFTP client"
+    default y
+    help
+        Enable or Disable TI Trivial File Transfer Protocol (TFTP) client.
+
+config TI_TFTP_SAMPLE_PLUGIN
+    bool "TI TFTP client plugin with shared library"
+    depends on TI_TFTP
+    default n
+    help
+        Build TFTP plugin to be built statically linked or as an executable with shared library.

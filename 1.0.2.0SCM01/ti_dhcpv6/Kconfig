@@ -1,0 +1,13 @@
+config TI_DHCPv6
+	bool "TI DHCPv6 Client"
+	depends on TI_FLEX
+	default y
+	help
+		Enable or Disable TI DHCPv6 Client.
+
+config TI_DHCPv6_SAMPLE_PLUGIN
+	bool "Install sample DHCPv6 plugins"
+	depends on TI_DHCPv6
+	default n
+	help
+		Enables compilation and installation of sample plugins for DHCPv6 client.

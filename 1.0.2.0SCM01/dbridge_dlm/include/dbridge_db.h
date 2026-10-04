@@ -1,0 +1,409 @@
+/*
+ *
+ * dbridge_db.h
+ * Description:
+ * The DOCSIS bridge database header file
+ *
+ * Copyright (C) 2008 Texas Instruments Incorporated - http://www.ti.com/ 
+ * 
+ * 
+ *  Redistribution and use in source and binary forms, with or without 
+ *  modification, are permitted provided that the following conditions 
+ *  are met:
+ *
+ *    Redistributions of source code must retain the above copyright 
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ *    Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the 
+ *    documentation and/or other materials provided with the   
+ *    distribution.
+ *
+ *    Neither the name of Texas Instruments Incorporated nor the names of
+ *    its contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+*/
+
+/***********************************************************************
+ Portions Copyright (C) 2008 Motorola Incorporated - http://www.motorola.com
+*********************************************************************/
+#ifndef _DBRIDGE_DB_H_
+#define _DBRIDGE_DB_H_
+
+
+/**************************************************************************/
+/*      INCLUDES                                                          */
+/**************************************************************************/
+#include <linux/netdevice.h>
+#include <linux/etherdevice.h>
+
+/**************************************************************************/
+/*  Various defines                                                       */
+/**************************************************************************/
+
+#ifndef __Uint64
+#define __Uint64
+typedef unsigned long long Uint64;
+#endif
+
+#ifndef __Int64
+#define __Int64
+typedef long long Int64;
+#endif
+
+
+#define DBR_MAX_ESAFE_INTERFACES 3                  
+#define DBR_MAX_INTERFACES DBR_MAX_ESAFE_INTERFACES + 4 /* cable IN+ cmci IN+ lan IP +cable IP + eSAFES */                   
+#define DBR_MAX_CPE_ENTRY 64
+#define DBR_MAX_ALT_SIZE DBR_MAX_CPE_ENTRY + DBR_MAX_ESAFE_INTERFACES + 2 /* CPEs + lan IP +cable IP + eSAFES */
+#define DBR_MAX_ALL_INTERFACE 32  /* max interface in the system, Docsis brudge, Local Bridge, esafe, etc... */ 
+#define MAC_ADDRESS_LEN 6
+
+#define DBR_OFF_MODE				0x0	 
+#define DBR_REGISTERED_MODE	        0x1 
+#define DBR_PRE_REGISTRATION_MODE	0x2 
+#define DBR_NACO_OFF_MODE			0x4 
+#define DBR_STANDBY_MODE			0x8 
+
+#define DBR_CMCI_NET_DEV_TYPE		0x1  /* 0000 0001 */
+#define DBR_CABLE_NET_DEV_TYPE	    0x2  /* 0000 0010 */
+#define DBR_ESAFE_NET_DEV_TYPE      0x4  /* 0000 0100 */
+#define DBR_WAN_IP_NET_DEV_TYPE  	0x8  /* 0000 1000 */
+#define DBR_LAN_IP_NET_DEV_TYPE  	0x10 /* 0001 0000 */
+
+#define DBR_NO_FILTER_CLASS_FLAG    0x0
+#define DBR_FILTER_FLAG             0x01
+#define DBR_CLASSIFIER_FLAG         0x02
+
+extern int ti_selective_forward(struct sk_buff *skb);
+
+/**************************************************************************/
+/*      INTERFACE  Defines and Structs                                    */
+/**************************************************************************/
+
+/*! \var typedef enum Cpe_learning_e
+    \brief enum defines the ...
+*/
+typedef enum Maclearning_e
+{
+    NOT_LEARN,
+	DBRIDGE_INIT,
+    CPE_STATIC,
+    CPE_DYNAMIC,
+} Maclearning_e;
+
+
+/*! \var typedef struct DbridgeDevice DbridgeDevice_t
+    \brief Structure defines the format of the network devices attached to the DOCSIS Bridge.
+*/
+
+typedef struct DbridgeDevice
+{
+    /* Linux specific device information. */
+	struct net_device*  ptr_interface; 
+
+    /* The function is the registered function that is called to "push"
+     * the packet onto the corresponding  interface. */ 
+   int     (*push)(struct sk_buff* skb, unsigned int fc_flags);
+   /* docsis interface type  - CPE eSAFE CABLE WAN IP or LAN IP */
+   int net_dev_type;
+}DbridgeDevice_t;
+
+/*! \var typedef struct DbridgeAltEntry DbridgeAltEntry_t
+    \brief Structure defines the format of the Address Lookup table entry.
+*/
+typedef struct DbridgeAltEntry 
+{
+    /* MAC Address */
+    unsigned char           macAddress[MAC_ADDRESS_LEN];  
+    
+	/* the cpe number in term of insert order to the table */
+	/* we need this information for IGMP support */
+	unsigned char           cpe_number;
+	/* cpe learning from - static, dynamic or not CPE  */
+	Maclearning_e macLearningFrom;
+
+    /* DOCSIS Bridge Device on which the MAC Address is present. */
+    DbridgeDevice_t*   dbridgeDevice;
+	/* the first interface where the packet received from (for example USB or Ethernet)*/
+	struct net_device*  sourceInterface;
+}DbridgeAltEntry_t;
+
+/*! \var typedef struct DbridgeDataBase DbridgeDataBase_t
+    \brief Structure contains information about the DOCSIS bridge.
+*/
+typedef struct DbridgeDataBase
+{
+    /* List of all DOCSIS Bridge device that is attached to the DOCSIS Bridge. */
+    DbridgeDevice_t   DbridgeDevices[DBR_MAX_INTERFACES];
+
+    /* Address Lookup table; which contains all the MAC Address learnt */
+    DbridgeAltEntry_t       altTable[DBR_MAX_ALT_SIZE];
+    /* docsis bride working mode */
+	unsigned int            mode;
+}DbridgeDataBase_t;
+
+typedef struct DbridgeDevCounter
+{
+    Uint64   inUcast;
+    Uint64   inMcast;
+    Uint64   inBcast;
+    Uint64   outUcast;
+    Uint64   outMcast;
+    Uint64   outBcast;
+    unsigned int            In;
+    unsigned int            Out;
+    unsigned int            Discard;
+    unsigned int            UnSupport;
+    unsigned int            FilterDrop;
+    unsigned int            FwrdRuleDrop;
+    
+}DbridgeDevCounter_t;
+
+typedef struct DbridgeCounter
+{
+	unsigned int            StaticCpe;
+	unsigned int            DynamicCpe;
+    DbridgeDevCounter_t     DevCounters[DBR_MAX_ALL_INTERFACE];
+}DbridgeCounters_t;
+
+typedef struct DbridgeCpeEntry 
+{
+    /* CPE MAC Address */
+    unsigned char           macAddress[MAC_ADDRESS_LEN];    
+	/* the cpe number, same in the ALT table */
+	unsigned char           cpe_number;
+    unsigned char           padd;
+    /* CPE IP */
+    unsigned int            cpe_ip;
+}DbridgeCpeEntry_t;
+
+typedef struct DbridgeCpeTable
+{
+    DbridgeCpeEntry_t       cpeTable[DBR_MAX_ALT_SIZE];
+}DbridgeCpeTable_t;
+
+
+
+/**************************************************************************/
+/*      Default Values                                          */
+/**************************************************************************/
+
+
+
+/**************************************************************************/
+/*      INTERFACE FUNCTIONS Prototypes:                                   */
+/**************************************************************************/
+
+/*! \fn STATUS DbridgeDb_Init(void)
+ *  \brief DOCSIS bridge data base initialization.
+ *  \param[in] no input.
+ *  \param[out] no output.
+ *  \return OK or error status.
+ */
+int DbridgeDb_Init(void);
+
+/*! \fn int DbridgeDb_ReInit(void)                                     
+ *  \brief DOCSIS bridge data base re-initialization.
+ *  \param[in] no input.
+ *  \param[out] no output.
+ *  \return OK or error status.
+ */
+int DbridgeDb_ReInit(void);
+
+/*! \fn int DbridgeDB_SetMaxCpe(unsigned  int mac_cpe_config)                                     
+ *  \brief set maximum  supported CPE.
+ *  \param[in] Max allow CPEs .
+ *  \param[out] no output.
+ *  \return OK or error status.
+ */
+int DbridgeDB_SetMaxCpe(unsigned  int mac_cpe);
+
+/*! \fn int DbridgeDB_GetMaxCpe()                                     
+ *  \brief set maximum  supported CPEs.
+ *  \param[in] None .
+ *  \param[out] None.
+ * return Max CPEs.
+ */
+int DbridgeDB_GetMaxCpe(void);
+
+/*! \fn int DbridgeDb_AltAddMac(unsigned char* mac_address, Maclearning_e mac_learn_from,struct net_device *ptr_netdev, struct net_device*  sourceInterface)
+ *  \brief This function Add MAC address to ALT table or update device information for
+ *  \brif existing cpe MAC that add from config file .
+ *  \param[in] cpe mac address.
+ *  \param[in] mac address from - NOT_CPE, CPE_STATIC or CPE_DYNAMIC,
+ *  \param[in] pointer to docsis device table.
+ *  \param[in] pointer to first interface where the packet received from.
+ *  \param[out] no output.
+ *  \return OK or error status.
+ */
+int DbridgeDb_AltAddMac(unsigned char* mac_address, Maclearning_e mac_learn_from,DbridgeDevice_t *dbridge_Devices,struct net_device*  sourceInterface);
+
+/*! \fn int DbridgeDb_AltAddMacByDevName(unsigned char* mac_address, unsigned char* name)
+ *  \brief this function Add MAC address to ALT table for cm interface (wan0 or lan0)
+ *  \param[in] mac address.
+ *  \param[in] device name.
+ *  \param[out] no output.
+ *  \return OK or error status.
+ */
+int DbridgeDb_AltAddMacByDevName(unsigned char* mac_address, unsigned char* name);
+
+/*! \fn DDbridgeAltEntry_t* DbridgeDb_AltGetMemberByMac(unsigned char* mac_address)
+ *  \brief The function retreives the dbridge ALT table member for the  
+ *  \brief corresponding mac address.
+ *  \param[in] ALT table index.
+ *  \return Success-pointer to the Dbridge ALT table, NULL-If no entry is found.
+ */
+DbridgeAltEntry_t*  DbridgeDb_AltGetMemberByMac(unsigned char* mac_address);
+
+/*! \fn DDbridgeAltEntry_t*  DbridgeDb_AltGetMemberByIndex(int index);
+ *  \brief The function retreives the dbridge ALT table member for the  
+ *  \brief corresponding mac address.
+ *  \param[in] cpe mac address.
+ *  \return Success-pointer to the Dbridge ALT table, NULL-If no entry is found.
+ */
+DbridgeAltEntry_t*  DbridgeDb_AltGetMemberByIndex(int index);
+
+/*! \fn int DbridgeDb_AltGetInfoByIndex(int index, unsigned char* mac_address, Maclearning_e *mac_learn_from, DbridgeDevice_t *dbridge_Devices)
+ *  \brief Get information from ALT table.
+ *  \param[in] ALT table index.
+ *  \param[out] mac address ,
+ *  \param[out] mac address learn from - NOT_CPE, CPE_STATIC or CPE_DYNAMIC,
+ *  \param[out] pointer to DbridgeDevice.
+ *  \return 0 or error status.
+ */
+int DbridgeDb_AltGetInfoByIndex(int index, unsigned char* mac_address, Maclearning_e *mac_learn_from, DbridgeDevice_t *dbridge_Devices);
+
+/*! \fn int DbridgeDb_AltGetNumMember(void)
+ *  \param[in] None.
+ *  \param[out] None.
+ *  \return Number of member in ALT table.
+ */
+int DbridgeDb_AltGetNumMember(void);
+
+/*! \fn int DbridgeDb_DevAdd(struct net_device* ptr_net_dev,int (*push)(struct sk_buff* skb))
+ *  \brief Add member to device table.
+ *  \param[in] pointer to net device.
+ *  \param[in] The PUSH Function to send the packet to Interface.
+ *  \param[in] docsis interface type  - CPE eSAFE CABLE WAN IP or LAN IP
+ *  \return 0=OK or error status.
+ */
+int DbridgeDb_DevAdd(struct net_device* ptr_net_dev,int (*push)(struct sk_buff* skb, unsigned int fc_flags), int net_dev_type);
+
+/*! \fn DbridgeDevice_t* DbridgeDb_DevGetByInterface (struct net_device* ptr_interface)
+ *  \brief The function retreives the dbridge device table member for the corresponding 
+ *  \brief network interface.
+ *  \param[in] pointer to net net device.
+ *  \return Success-pointer to the Dbridge device table, NULL-If no entry is found.
+ */
+DbridgeDevice_t* DbridgeDb_DevGetByInterface (struct net_device* ptr_interface);
+
+/*! \fn DbridgeDevice_t* DbridgeDb_DevGetByIndex (struct net_device* ptr_interface)
+ *  \brief The function retreives the dbridge device table member for the corresponding 
+ *  \brief index.
+ *  \param[in] index.
+ *  \return Success-pointer to the Dbridge device table, NULL-If no entry is found.
+ */
+DbridgeDevice_t* DbridgeDb_DevGetByIndex(int index);
+
+/*! \fn DbridgeDevice_t* DbridgeDb_DevGetByType(int net_dev_type)
+ *  \brief The function retreives the dbridge device table member for the corresponding 
+ *  \brief type.
+ *  \param[in] net dev  - CMCI, ESAFE CABLE WAN_IP or LAN_IP.
+ *  \return Success-pointer to the Dbridge device table, NULL-If no entry is found.
+ */
+DbridgeDevice_t* DbridgeDb_DevGetByType(int net_dev_type);
+
+/*! \fn int DbridgeDb_GetNumOfDevice (void)
+ *  \brief The function retreives the number of device connect to docsis bridge
+ *  \param[in] none.
+ *  \return number of device connect to docsis bridge.
+ */
+int DbridgeDb_GetNumOfDevice(void);
+
+/*! \fn void DbridgeDb_SetMode (int mode)
+ *  \brief set docsis bridge mode
+ *  \param[in] docsis bridge mode - off, registered pre_registration or naco_off 
+ *  \return none.
+ */
+void DbridgeDb_SetMode(int mode);
+
+/*! \fn iint DbridgeDb_GetMode (void)
+ *  \brief get docsis bridge mode
+ *  \param[in] none
+ *  \return docsis bridge mode - off, registered pre_registration or naco_off.
+ */
+int DbridgeDb_GetMode(void);
+
+/*! \fn iDbridgeCounter_t* Dbridge_GetCounters(void)
+ *  \brief get docsis bridge counters
+ *  \param[in] none
+ *  \return pointer to the Dbridge counter structure.
+ */
+DbridgeCounters_t* Dbridge_GetCounters(void);
+
+/*! \fn int DbridgeDB_GetlbridgeInterfaceMask(void)                                     
+ *  \brief Get lbridge Interface Mask.
+ *  \param[in] None .
+ *  \param[out] None.
+ *  \return lbridge Interface Masks.
+ */
+int DbridgeDB_GetlbridgeInterfaceMask(void);
+
+int mot_DbridgeDb_AltGetDstMac(char* dev, unsigned char* mac_address);
+int mot_DbridgeDb_SaveCpeMacIp(unsigned int cpe_cached_ip, unsigned char* cpe_mac);
+int mot_DbridgeDb_IsDestCpe(unsigned int dest_ip, unsigned char* dest_mac);
+
+int mot_DbridgeDB_SetCountMtaAsCpe(unsigned int uiValue);
+unsigned int mot_DbridgeDB_GetCountMtaAsCpe(void);
+int mot_dbridgeDb_IsCpeExisting(unsigned int dest_ip); 
+
+/**************************************************************************/
+/*! \fn int mot_GetCmTftpPort(void)
+ **************************************************************************
+ *  \brief function to Get the CM tftp port value 
+ *  \param[in] None
+ *  \return port number
+ **************************************************************************/
+int mot_GetCmTftpPort();
+/**************************************************************************/
+/*! \fn void mot_SetCmTftpPort(usigned int port)
+ **************************************************************************
+ *  \brief function to set the CM tftp port value  
+ *  \param[in] Port Number
+ *  \return None
+ **************************************************************************/
+void mot_SetCmTftpPort(unsigned int uiPortNum);
+
+/* allow sw dl to happen through cli and factory MIB in factory mode*/
+/**************************************************************************/
+/*! \fn int mot_GetCmFactoryMode(void)
+ **************************************************************************
+ *  \brief function to get the factory mode value 
+ *  \param[in] None
+ *  \return port number
+ **************************************************************************/
+int mot_GetCmFactoryMode(void);
+/**************************************************************************/
+/*! \fn void mot_SetCmTftpPort(usigned int port)
+ **************************************************************************
+ *  \brief function to set the factory mode value  
+ *  \param[in] Port Number
+ *  \return None
+ **************************************************************************/
+void mot_SetCmFactoryMode(unsigned int uiPortNum);
+#endif
+

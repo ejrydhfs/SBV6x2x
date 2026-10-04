@@ -1,0 +1,101 @@
+libber (0.4.2) unstable; urgency=low
+
+  * Compile against latest libabz0.
+  * Use bash in Makefile (Closes: #381564)
+  * Updated Debian policy version.
+  * Fixed headers in man pages.
+
+ -- Abraham vd Merwe <abz@debian.org>  Wed, 20 Sep 2006 03:50:58 +0200
+
+libber (0.4.1) unstable; urgency=low
+
+  * Added helper functions for encoding/decoding ASCIIZ strings.
+  * Added encoding/decoding functions for LOGD API.
+  * Removed stale references to ber_{en,de}code_uinteger32.
+
+ -- Abraham vd Merwe <abz@debian.org>  Sun, 29 Feb 2004 12:55:45 +0200
+
+libber (0.3.5) unstable; urgency=low
+
+  * Link in shared libraries on which libber depends (Closes: #230668)
+
+ -- Abraham vd Merwe <abz@debian.org>  Sat, 28 Feb 2004 15:43:07 +0200
+
+libber (0.3.4) unstable; urgency=low
+
+  * Added build dependencies for libber0-dev
+    (Closes: #223221, #224897, #230668)
+
+ -- Abraham vd Merwe <abz@debian.org>  Sat, 21 Feb 2004 12:56:36 +0200
+
+libber (0.3.3) unstable; urgency=low
+
+  * Added workaround for bug in some CNet switch
+    snmp implementations.
+
+ -- Abraham vd Merwe <abz@debian.org>  Sat, 13 Dec 2003 12:46:44 +0200
+
+libber (0.3.2) unstable; urgency=low
+
+  * Fixed buffer overflow in makeoid().
+  * Renamed make_oid() to makeoid().
+  * Minor bugfixes in regression test programs.
+
+ -- Abraham vd Merwe <abz@debian.org>  Tue,  9 Dec 2003 17:27:02 +0200
+
+libber (0.3.1) unstable; urgency=low
+
+  * Added functions to encode/decode Trap, GetBulkRequest,
+    InformRequest, and SNMPv2_Trap tags.
+  * Now uses abz_*_error() functions to report errors.
+  * Added regression tests for makeoid().
+  * New Makefile system.
+  * Created man pages for all the functions on the library.
+  * Changed package description.
+
+ -- Abraham vd Merwe <abz@debian.org>  Sun, 26 Oct 2003 20:08:09 +0200
+
+libber (0.2.5) unstable; urgency=low
+
+  * Updated dependencies.
+
+ -- Abraham vd Merwe <abz@debian.org>  Tue,  7 Oct 2003 19:03:40 +0200
+
+libber (0.2.4) unstable; urgency=low
+
+  * Changed libber0-dev section.
+  * Fixed integer encoding/decoding routines (Closes: #197629)
+
+ -- Abraham vd Merwe <abz@debian.org>  Mon, 16 Jun 2003 18:57:25 +0200
+
+libber (0.2.3) unstable; urgency=low
+
+  * Changed EBADMSG to EINVAL (more portable).
+  * Ported to FreeBSD.
+  * Changed copyright notices to reflect my new preferred email address.
+
+ -- Abraham vd Merwe <abz@debian.org>  Sat,  6 Jul 2002 16:11:40 +0200
+
+libber (0.2.2) unstable; urgency=low
+
+  * Changed all function that allocates memory to stub/macro pairs so
+    that we can track memory leaks better.
+
+ -- Abraham vd Merwe <abz@debian.org>  Sat, 22 Jun 2002 14:07:29 +0200
+
+libber (0.2.1) unstable; urgency=low
+
+  * Changed OCTET STRING type to support 8-bit characters.
+  * Added IpAddress type.
+
+ -- Abraham vd Merwe <abz@debian.org>  Fri, 21 Jun 2002 18:27:05 +0200
+
+libber (0.1.1) unstable; urgency=low
+
+  * Initial Release.
+
+ -- Abraham vd Merwe <abz@debian.org>  Sat,  6 Apr 2002 20:01:03 +0200
+
+Local variables:
+mode: debian-changelog
+End:
